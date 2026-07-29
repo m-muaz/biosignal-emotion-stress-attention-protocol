@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.DS_Store
+data/
+sessions/
+*.log
+.venv/
+venv/
+
+# Real stimulus clips (FilmStim etc.) are large, copyrighted commercial film
+# files -- never belong in git. Keep them in assets/clips/ locally/on Drive
+# and point emotion_manifest.json at that path; only placeholders are tracked.
+assets/clips/
+*.mp4
+*.mpg
+*.mov
+*.avi

@@ -1,0 +1,8 @@
+# Install numpy<2 BEFORE psychopy (or alongside, pip resolves pins together) --
+# psychopy doesn't hard-pin numpy<2 itself, so an unconstrained install can pull
+# numpy 2.x while other deps (matplotlib, etc.) still ship numpy-1.x-ABI wheels,
+# causing an "AttributeError: _ARRAY_API not found" on import.
+numpy
+psychopy
+bleak
+pyyaml

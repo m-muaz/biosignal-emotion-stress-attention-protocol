@@ -1,0 +1,126 @@
+# Session configuration for the Emotion/Stress/Attention collection protocol.
+# All durations are the "real" (full-session) values from Engineering_Document.md.
+# A --demo-scale multiplier (applied uniformly at runtime, see app/config/loader.py)
+# lets the whole 63-min protocol be walked through quickly for a demo run.
+
+session:
+  total_duration_min: 63
+  random_seed: null   # null = seed from participant_id at runtime
+
+preparation:
+  duration_min: 10
+
+familiarization:
+  duration_min: 3
+
+breaks:
+  after_task1_min: 3
+  after_task2_min: 2
+
+debrief:
+  duration_min: 2
+
+attention_task:
+  duration_min: 15
+  grid_size: 3
+  conditions: [0, 1, 2]          # n-back levels; capped at 2 per design decision
+  trials_per_condition: 3
+  block_duration_sec: 60
+  cue_duration_sec: 5
+  rest_duration_sec: 15
+  soa_sec: 2.5                    # unhurried pace, keeps task attention- not memory-dominant
+  target_prob: 0.3                # fraction of trials that are true targets
+  practice_trials: 10
+  target_accuracy:                # pilot-tunable bands, not enforced — logged for QA
+    0: 0.95
+    1: 0.85
+    2: 0.72
+
+emotion_task:
+  duration_min: 20
+  valence_groups: [positive, negative, neutral]
+  clips_per_group: 3
+  fixation_duration_sec: 5
+  rest_duration_sec: 20
+  rating_duration_sec: 20
+  rating_scale_min: 0
+  rating_scale_max: 7
+  rating_items: [valence, arousal, liking]
+  dominance_enabled: false        # config-toggleable 4th rating item
+  manifest_path: app/config/emotion_manifest.json
+
+stress_task:
+  duration_min: 8
+  baseline_duration_sec: 60
+  arithmetic_duration_sec: 60
+  hurry_up_threshold_fraction: 0.5
+  leaderboard_names: [Alex, Sam, Jordan, Taylor, Casey]
+  leaderboard_scores: [42, 39, 37, 35, 33]
+  tiers:
+    - id: 1
+      label: tier_1
+      operators: ["+", "-"]
+      num_operands: 2
+      max_digits: 2
+      time_per_question_sec: 5.5
+      target_accuracy: 0.875
+    - id: 2
+      label: tier_2
+      operators: ["+", "-", "*"]
+      num_operands: 3
+      max_digits: 2
+      time_per_question_sec: 4.5
+      target_accuracy: 0.70
+    - id: 3
+      label: tier_3
+      operators: ["+", "-", "*", "/"]
+      num_operands: 4
+      max_digits: 2
+      time_per_question_sec: 3.5
+      target_accuracy: 0.50
+  # Tier order presented to each participant is randomized at runtime, but tier
+  # identity is never shown on screen — logged to the event log only.
+
+devices:
+  mode: mock                      # mock | real — mock lets the app run with no hardware present
+  ear_eeg_out:
+    enabled: true
+    name_prefix: "ESP_SPP_SERVER"
+    protocol: gatt_struct
+  ear_eeg_in:
+    enabled: false                # in-ear firmware has no BLE sync yet — open item #2
+    name_prefix: "ESP_SPP_SERVER"
+    protocol: gatt_struct
+  wristband:
+    enabled: true
+    name_prefix: "WristBand_"
+    protocol: nus_text
+  emotiv_flex:
+    enabled: false                # integration method TBD — open item #1
+    protocol: unknown
+
+# First-pass draft (Engineering_Document.md §3.3) -- core battery only.
+# Add items here (not in code) to extend it; each type is handled generically
+# by app/main.py's questionnaire runner.
+questionnaire:
+  items:
+    - id: handedness
+      type: choice
+      prompt: "Are you left-handed, right-handed, or ambidextrous?"
+      options: ["Left-handed", "Right-handed", "Ambidextrous"]
+    - id: sleep_hours_last_night
+      type: numeric
+      prompt: "How many hours did you sleep last night?"
+    - id: caffeine_last_3h
+      type: choice
+      prompt: "Have you had caffeine in the last 3 hours?"
+      options: ["Yes", "No"]
+    - id: stress_baseline
+      type: rating
+      prompt: "Rate your current stress level right now."
+    - id: mood_baseline
+      type: rating
+      prompt: "Rate your current mood/energy right now."
+
+logging:
+  session_root: "./sessions"

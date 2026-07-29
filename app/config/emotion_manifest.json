@@ -1,0 +1,68 @@
+{
+  "_comment": "Placeholder clip manifest. file_path entries point at assets/placeholder_clips/ which do not contain real video files yet -- the emotion task module falls back to a procedurally-rendered placeholder (colored rect + label) when file_path does not exist, so the app runs end-to-end without real media. Swap file_path values to the real FilmStim exports and this fallback stops triggering automatically.",
+  "clips": [
+    {
+      "clip_id": "pos_01",
+      "valence_group": "positive",
+      "fine_grained_label": "amusement",
+      "file_path": "assets/placeholder_clips/pos_01.mp4",
+      "duration_sec": 90
+    },
+    {
+      "clip_id": "pos_02",
+      "valence_group": "positive",
+      "fine_grained_label": "tenderness",
+      "file_path": "assets/placeholder_clips/pos_02.mp4",
+      "duration_sec": 90
+    },
+    {
+      "clip_id": "pos_03",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "file_path": "assets/placeholder_clips/pos_03.mp4",
+      "duration_sec": 90
+    },
+    {
+      "clip_id": "neg_01",
+      "valence_group": "negative",
+      "fine_grained_label": "sadness",
+      "file_path": "assets/placeholder_clips/neg_01.mp4",
+      "duration_sec": 90
+    },
+    {
+      "clip_id": "neg_02",
+      "valence_group": "negative",
+      "fine_grained_label": "fear",
+      "file_path": "assets/placeholder_clips/neg_02.mp4",
+      "duration_sec": 90
+    },
+    {
+      "clip_id": "neg_03",
+      "valence_group": "negative",
+      "fine_grained_label": "disgust",
+      "file_path": "assets/placeholder_clips/neg_03.mp4",
+      "duration_sec": 90
+    },
+    {
+      "clip_id": "neu_01",
+      "valence_group": "neutral",
+      "fine_grained_label": "neutral",
+      "file_path": "assets/placeholder_clips/neu_01.mp4",
+      "duration_sec": 90
+    },
+    {
+      "clip_id": "neu_02",
+      "valence_group": "neutral",
+      "fine_grained_label": "neutral",
+      "file_path": "assets/placeholder_clips/neu_02.mp4",
+      "duration_sec": 90
+    },
+    {
+      "clip_id": "neu_03",
+      "valence_group": "neutral",
+      "fine_grained_label": "neutral",
+      "file_path": "assets/placeholder_clips/neu_03.mp4",
+      "duration_sec": 90
+    }
+  ]
+}

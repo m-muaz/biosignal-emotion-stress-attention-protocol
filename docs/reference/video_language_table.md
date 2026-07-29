@@ -1,0 +1,59 @@
+# FilmStim video language table
+
+Total: 53 clips — 40 English audio, 13 French audio (no English track exists on the FilmStim source site for the French ones).
+
+| # | Title | Category | Language | File |
+|---|---|---|---|---|
+| 1 | The visitors | Amusement | French | `Amusement/01_The visitors.mp4` |
+| 12 | The dinner game | Amusement | French | `Amusement/12_The dinner game.mp4` |
+| 14 | When Harry met Sally | Amusement | English | `Amusement/14_When Harry met Sally.mp4` |
+| 23 | A fish called Wanda | Amusement | English | `Amusement/23_A fish called Wanda.mp4` |
+| 34 | There is Something about Mary (2) | Amusement | English | `Amusement/34_There is Something about Mary (2).mp4` |
+| 53 | Underground | Amusement | French | `Amusement/53_Underground.mp4` |
+| 61 | There is something about Mary (1) | Amusement | English | `Amusement/61_There is something about Mary (1).mp4` |
+| 2 | Schindlers list (2) | Anger | English | `Anger/02_Schindler_s list (2).mp4` |
+| 5 | American History X | Anger | English | `Anger/05_American History X.mp4` |
+| 11 | Man bites dog (2) | Anger | English | `Anger/11_Man bites dog (2).mp4` |
+| 25 | Sleepers | Anger | English | `Anger/25_Sleepers.mp4` |
+| 30 | In the name of the father | Anger | English | `Anger/30_In the name of the father.mp4` |
+| 39 | The piano | Anger | English | `Anger/39_The piano.mp4` |
+| 41 | The professional (2) | Anger | English | `Anger/41_The professional (2).mp4` |
+| 51 | Leaving Las Vegas | Anger | English | `Anger/51_Leaving Las Vegas.mp4` |
+| 65 | Seven (1) | Anger | English | `Anger/65_Seven (1).mp4` |
+| 68 | Schindlers List (3) | Anger | English | `Anger/68_Schindler_s List (3).mp4` |
+| 10 | Trainspotting (1) | Disgust | English | `Disgust/10_Trainspotting (1).mp4` |
+| 17 | Trainspotting (3) | Disgust | English | `Disgust/17_Trainspotting (3).mp4` |
+| 22 | The Silence of the lambs | Disgust | English | `Disgust/22_The Silence of the lambs.mp4` |
+| 27 | Saving private Ryan | Disgust | English | `Disgust/27_Saving private Ryan.mp4` |
+| 31 | Indiana Jones and the Last Crusade | Disgust | English | `Disgust/31_Indiana Jones and the Last Crusade.mp4` |
+| 35 | Trainspotting (2) | Disgust | English | `Disgust/35_Trainspotting (2).mp4` |
+| 47 | The dentist | Disgust | French | `Disgust/47_The dentist.mp4` |
+| 57 | Hellraiser | Disgust | French | `Disgust/57_Hellraiser.mp4` |
+| 63 | Man bites dog (1) | Disgust | English | `Disgust/63_Man bites dog (1).mp4` |
+| 69 | Seven (3) | Disgust | English | `Disgust/69_Seven (3).mp4` |
+| 24 | The exorcist | Fear | English | `Fear/24_The exorcist.mp4` |
+| 28 | The Shining | Fear | English | `Fear/28_The Shining.mp4` |
+| 32 | Copycat | Fear | English | `Fear/32_Copycat.mp4` |
+| 38 | It | Fear | French | `Fear/38_It.mp4` |
+| 46 | Child's Play II (Chucky 2) | Fear | English | `Fear/46_Child_s Play II (Chucky 2).mp4` |
+| 50 | Misery | Fear | English | `Fear/50_Misery.mp4` |
+| 55 | The Blair Witch Project | Fear | English | `Fear/55_The Blair Witch Project.mp4` |
+| 66 | Scream 2 | Fear | French | `Fear/66_Scream 2.mp4` |
+| 45 | Blue (2) | Neutral | French | `Neutral/45_Blue (2).mp4` |
+| 49 | Blue (3) | Neutral | French | `Neutral/49_Blue (3).mp4` |
+| 58 | The lover | Neutral | French | `Neutral/58_The lover.mp4` |
+| 64 | Blue (1) | Neutral | French | `Neutral/64_Blue (1).mp4` |
+| 3 | The Dead Poets society (1) | Sadness | English | `Sadness/03_The Dead Poets society (1).mp4` |
+| 9 | E.T. | Sadness | English | `Sadness/09_E.T..mp4` |
+| 21 | Dead man walking | Sadness | English | `Sadness/21_Dead man walking.mp4` |
+| 36 | City of angels | Sadness | English | `Sadness/36_City of angels.mp4` |
+| 43 | A perfect world | Sadness | English | `Sadness/43_A perfect world.mp4` |
+| 52 | Dangerous minds | Sadness | English | `Sadness/52_Dangerous minds.mp4` |
+| 54 | Life is beautiful (1) | Sadness | English | `Sadness/54_Life is beautiful (1).mp4` |
+| 62 | Philadelphia | Sadness | English | `Sadness/62_Philadelphia.mp4` |
+| 4 | The eigth day | Tenderness | French | `Tenderness/04_The eigth day.mp4` |
+| 15 | Forrest Gump | Tenderness | French | `Tenderness/15_Forrest Gump.mp4` |
+| 26 | When a man loves a woman | Tenderness | English | `Tenderness/26_When a man loves a woman.mp4` |
+| 33 | Ghost | Tenderness | English | `Tenderness/33_Ghost.mp4` |
+| 56 | Benny & Joone | Tenderness | English | `Tenderness/56_Benny _ Joone.mp4` |
+| 59 | The Dead Poets society (2) | Tenderness | English | `Tenderness/59_The Dead Poets society (2).mp4` |
