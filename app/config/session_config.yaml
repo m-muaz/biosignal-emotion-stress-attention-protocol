@@ -5,7 +5,7 @@
 
 session:
   total_duration_min: 63
-  random_seed: null   # null = seed from participant_id at runtime
+  random_seed: null   # unused -- rng is seeded from session start time (see app/main.py, app/run_task.py); actual seed used is recorded in each session's session_manifest.json
 
 preparation:
   duration_min: 10
@@ -21,65 +21,79 @@ debrief:
   duration_min: 2
 
 attention_task:
+  # Spatial n-back (grid) design retired -- see app/tasks/attention_nback.py (kept,
+  # commented out, for reference). Replaced by OpenMATB (juliencegarra/OpenMATB), an
+  # existing, validated sustained-attention/workload battery, run as a subprocess so
+  # we don't reinvent continuous vigilance measurement from scratch.
+  # NOT run by app/main.py's session flow (emotion -> stress only, for now) --
+  # OpenMATB runs as its own standalone step afterward. This block is still used
+  # by `python -m app.run_task --task attention` for testing that path in isolation.
   duration_min: 15
-  grid_size: 3
-  conditions: [0, 1, 2]          # n-back levels; capped at 2 per design decision
-  trials_per_condition: 3
-  block_duration_sec: 60
   cue_duration_sec: 5
-  rest_duration_sec: 15
-  soa_sec: 2.5                    # unhurried pace, keeps task attention- not memory-dominant
-  target_prob: 0.3                # fraction of trials that are true targets
-  practice_trials: 10
-  target_accuracy:                # pilot-tunable bands, not enforced — logged for QA
-    0: 0.95
-    1: 0.85
-    2: 0.72
+  practice_duration_sec: 60       # untimed practice run, not part of the scored dataset
+  block_duration_sec: 720         # continuous scored run length (12 min)
+  openmatb:
+    install_path: vendor/OpenMATB    # external checkout, gitignored -- see README "Attention task (OpenMATB)"
+    subtasks: [sysmon, resman]       # keyboard-only: no joystick available for the `track` plugin
+    language: en_EN
+    fullscreen: false
+    screen_index: 0
+    sysmon_alerttimeout_ms: 10000          # how long an unaddressed failure stays active before auto-clearing as a MISS
+    sysmon_feedback_duration_ms: 1500
+    sysmon_failure_interval_range_sec: [10, 20]   # spacing between induced sysmon failures (pseudo-random, seeded by session rng)
 
 emotion_task:
   duration_min: 20
   valence_groups: [positive, negative, neutral]
   clips_per_group: 3
   fixation_duration_sec: 5
-  rest_duration_sec: 20
-  rating_duration_sec: 20
+  rest_duration_sec: 5
+  rating_duration_sec: 30
   rating_scale_min: 0
   rating_scale_max: 7
   rating_items: [valence, arousal, liking]
   dominance_enabled: false        # config-toggleable 4th rating item
   manifest_path: app/config/emotion_manifest.json
+  external_player_path: null      # null -> auto-detect VLC (PATH or common install dirs); override with a specific player .exe
 
 stress_task:
   duration_min: 8
-  baseline_duration_sec: 60
+  baseline_duration_sec: 10
   arithmetic_duration_sec: 60
-  hurry_up_threshold_fraction: 0.5
+  hurry_up_threshold_fraction: 0.8  # "HURRY UP!" (blinking) appears once this fraction of time REMAINS -- 0.8 = after 20% of the question's time has elapsed
   leaderboard_names: [Alex, Sam, Jordan, Taylor, Casey]
-  leaderboard_scores: [42, 39, 37, 35, 33]
+  leaderboard_scores: [95, 85, 80, 75, 66]
+  # Explicit trial sequence, in presentation order -- each entry is one tier id
+  # from `tiers` below, and each trial is one baseline block followed by one
+  # arithmetic block using that tier's question format (baseline_duration_sec/
+  # arithmetic_duration_sec above apply to every trial). Repeat an id to run a
+  # tier more than once (e.g. [1, 2, 3, 1, 2, 3] for two full passes); the
+  # number of trials the participant is told about before starting is just
+  # len(trial_order).
+  trial_order: [1, 2, 3]
   tiers:
     - id: 1
       label: tier_1
       operators: ["+", "-"]
-      num_operands: 2
-      max_digits: 2
-      time_per_question_sec: 5.5
+      num_operands: 3
+      max_digits: 1
+      time_per_question_sec: 5.0
       target_accuracy: 0.875
     - id: 2
       label: tier_2
-      operators: ["+", "-", "*"]
-      num_operands: 3
-      max_digits: 2
-      time_per_question_sec: 4.5
+      operators: ["+", "-"]
+      num_operands: 4
+      max_digits: 1
+      time_per_question_sec: 5.0
       target_accuracy: 0.70
     - id: 3
       label: tier_3
-      operators: ["+", "-", "*", "/"]
-      num_operands: 4
-      max_digits: 2
-      time_per_question_sec: 3.5
+      operators: ["+", "-"]
+      num_operands: 5
+      max_digits: 1
+      time_per_question_sec: 5.0
       target_accuracy: 0.50
-  # Tier order presented to each participant is randomized at runtime, but tier
-  # identity is never shown on screen — logged to the event log only.
+  # Tier identity is never shown on screen -- logged to the event log only.
 
 devices:
   mode: mock                      # mock | real — mock lets the app run with no hardware present
@@ -104,6 +118,9 @@ devices:
 # by app/main.py's questionnaire runner.
 questionnaire:
   items:
+    - id: age
+      type: numeric
+      prompt: "What is your age?"
     - id: handedness
       type: choice
       prompt: "Are you left-handed, right-handed, or ambidextrous?"

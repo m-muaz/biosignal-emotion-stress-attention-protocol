@@ -1,6 +1,13 @@
-"""Session runner. Orchestrates the full 63-min protocol from
-Engineering_Document.md: consent -> questionnaire -> device sync ->
-familiarization -> Task 1 -> break -> Task 2 -> break -> Task 3 -> debrief.
+"""Session runner. Orchestrates the emotion+stress portion of the protocol:
+consent -> questionnaire -> device sync -> familiarization -> emotion task ->
+break -> stress task -> conclusion.
+
+The attention/focus task (OpenMATB) is deliberately NOT orchestrated here --
+it's a separate pyglet application run as its own standalone process (its own
+window/event loop, its own isolated venv -- see README.md "Attention task
+(OpenMATB)"), launched after this script's session ends rather than embedded
+in this flow. `app/tasks/attention_openmatb.py` and `app/run_task.py --task
+attention` remain available for testing that integration in isolation.
 
 Usage:
     python -m app.main --participant-id P001
@@ -9,8 +16,8 @@ Usage:
 --demo-scale shortens passive/macro block lengths (baseline duration, rest,
 cue, fixation, video length, number of trials per block) so the whole
 protocol can be walked through quickly. It deliberately does NOT shorten
-interactive per-event timing (n-back SOA, stress per-question time limit) --
-scaling those would make the task impossible for a human to actually try.
+interactive per-event timing (stress per-question time limit) -- scaling
+that would make the task impossible for a human to actually try.
 """
 
 import argparse
@@ -25,35 +32,36 @@ from app.context import SessionContext
 from app.eventlog.event_logger import EventLogger
 from app.eventlog.session_manifest import write_session_manifest
 from app.sync.device_sync import sync_all_blocking
-from app.tasks.attention_nback import build_grid, run_attention_task, run_trial
-from app.tasks.emotion_faced import run_emotion_task
+from app.tasks.emotion_faced import (
+    EMOTION_OPTIONS,
+    EMOTION_PROMPT,
+    ExternalPlayerNotFound,
+    pick_practice_clip,
+    play_clip,
+    resolve_external_player,
+    run_emotion_task,
+    select_task_clips,
+)
 from app.tasks.stress_mat import generate_question, get_numeric_answer, run_stress_task
-from app.ui.common_widgets import UserQuit, discrete_choice, numeric_entry, rating_scale_0_7, show_message
+from app.ui.common_widgets import (
+    BG_COLOR,
+    UserQuit,
+    discrete_choice,
+    numeric_entry,
+    rating_scale_0_7,
+    show_message,
+    show_title_screen,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-CONSENT_TEXT = """INFORMED CONSENT (draft -- pending IRB/PI review, see Engineering_Document.md §3.3)
-
-Purpose: we are collecting biosignals to study emotion, stress, and attention/focus states for machine learning research.
-
-What will happen:
-  1. An attention/memory grid game.
-  2. Watching short video clips and rating your emotional reaction to each.
-  3. A timed mental arithmetic task with a countdown timer and leaderboard, designed to be mildly stressful.
-
-Sensors worn (all non-invasive): two ear-EEG devices, a wristband (heart rate, motion, temperature, skin conductance), and for some participants a 32-channel EEG cap.
-
-Duration: about 63 minutes total.
-
-Data collected: physiological signals, task responses/accuracy, and self-report ratings. No audio/video recording of you unless separately stated.
-
-Possible discomfort: mild sensation from electrode gel/wristband strap; some clips may evoke sadness, disgust, or fear; the arithmetic task is deliberately time-pressured.
-
-Participation is voluntary. You may withdraw at any time without penalty, and may skip any question.
-
-Your data is stored under an assigned participant ID, not your name.
-
-Press SPACE to indicate you have read this and consent to participate."""
+# Minimal intro splash -- replaces a full informed-consent paragraph that
+# overflowed the window at a readable font size. The full consent language
+# (IRB/PI review pending, see Engineering_Document.md §3.3) belongs in a
+# proper printed/e-signed consent form before real data collection, not
+# packed into a single fixed-size on-screen TextStim.
+INTRO_HEADING = "DATA COLLECTION SESSION"
+INTRO_SUBTEXT = "Emotion task, then a stress task. Press SPACE to begin."
 
 
 def parse_args():
@@ -70,7 +78,7 @@ def parse_args():
 
 def run_consent_and_questionnaire(win, ctx, cfg):
     ctx.event_logger.log("phase_start", task="preparation")
-    show_message(win, CONSENT_TEXT, wait_key=["space", "return"])
+    show_title_screen(win, INTRO_HEADING, INTRO_SUBTEXT)
     ctx.event_logger.log("consent_given", task="preparation")
 
     responses = {}
@@ -90,7 +98,10 @@ def run_consent_and_questionnaire(win, ctx, cfg):
     return responses
 
 
-def run_familiarization(win, ctx, cfg):
+def run_familiarization(win, ctx, cfg, clips, selected_by_group, player_path):
+    """Returns the (possibly new) Window -- play_clip() closes/reopens our
+    window around the practice clip's playback, so the caller must reassign
+    its `win` reference to the return value."""
     ctx.event_logger.log("phase_start", task="familiarization")
     show_message(
         win,
@@ -108,15 +119,23 @@ def run_familiarization(win, ctx, cfg):
         wait_key=["space", "return"],
     )
 
+    # Practice clip is drawn from clips NOT selected for the real task (see
+    # pick_practice_clip) -- a genuinely new clip, not a preview of one the
+    # participant will rate for real a few minutes from now.
+    practice_clip = pick_practice_clip(clips, selected_by_group, ctx.rng)
     show_message(
         win,
-        "Preview: ATTENTION task. Watch the grid -- one cell lights up at a time. Here's one example trial.\n\n"
-        "Press SPACE to see it.",
+        "Preview: EMOTION task. You'll watch a short clip in its own player window, then answer "
+        "a couple of quick questions about how it made you feel, like this.\n\n"
+        "Press SPACE to play the practice clip.",
         wait_key=["space", "return"],
     )
-    grid_size = cfg["attention_task"]["grid_size"]
-    cells = build_grid(win, grid_size)
-    run_trial(win, cells, pos=(grid_size * grid_size) // 2, soa=cfg["attention_task"]["soa_sec"], stim_on_sec=0.6)
+    win = play_clip(win, practice_clip, ctx.scaled(practice_clip.get("duration_sec", 90)), ctx=ctx, player_path=player_path, task_label="familiarization")
+    discrete_choice(win, EMOTION_PROMPT, EMOTION_OPTIONS)
+    rating_scale_0_7(
+        win, "Rate your VALENCE (example only -- not a real clip).",
+        cfg["emotion_task"]["rating_scale_min"], cfg["emotion_task"]["rating_scale_max"],
+    )
 
     show_message(
         win,
@@ -133,19 +152,9 @@ def run_familiarization(win, ctx, cfg):
         cfg["stress_task"]["hurry_up_threshold_fraction"],
     )
 
-    show_message(
-        win,
-        "Preview: EMOTION task. After each short clip, you'll rate how it made you feel, like this.\n\n"
-        "Press SPACE to try an example rating.",
-        wait_key=["space", "return"],
-    )
-    rating_scale_0_7(
-        win, "Rate your VALENCE (example only -- not a real clip).",
-        cfg["emotion_task"]["rating_scale_min"], cfg["emotion_task"]["rating_scale_max"],
-    )
-
     show_message(win, "That's everything. The real tasks begin now.\n\nPress SPACE to start.", wait_key=["space", "return"])
     ctx.event_logger.log("phase_end", task="familiarization")
+    return win
 
 
 def _raise_window_focus():
@@ -183,10 +192,15 @@ def main():
     session_dir = REPO_ROOT / config["logging"]["session_root"] / session_id
 
     event_logger = EventLogger(session_dir, session_id, args.participant_id)
-    rng = random.Random(args.participant_id)
-    ctx = SessionContext(config=config, event_logger=event_logger, participant_id=args.participant_id, demo_scale=args.demo_scale, rng=rng)
+    rng_seed = time.time()
+    rng = random.Random(rng_seed)
+    window_kwargs = dict(size=(1280, 800), color=BG_COLOR, units="height", fullscr=args.fullscreen)
+    ctx = SessionContext(
+        config=config, event_logger=event_logger, participant_id=args.participant_id, demo_scale=args.demo_scale,
+        rng=rng, window_kwargs=window_kwargs,
+    )
 
-    win = visual.Window(size=(1280, 800), color="black", units="height", fullscr=args.fullscreen)
+    win = visual.Window(**window_kwargs)
     _raise_window_focus()
 
     try:
@@ -196,28 +210,31 @@ def main():
             event_logger.log("device_sync", task="preparation", **records[0])
             if records[0]["result"] != "ok":
                 print(f"WARNING: sync failed for device '{role}': {records[0]['detail']}")
-        write_session_manifest(session_dir, session_id, args.participant_id, config, sync_records, args.demo_scale)
+        write_session_manifest(session_dir, session_id, args.participant_id, config, sync_records, args.demo_scale, rng_seed)
+
+        try:
+            player_path = resolve_external_player(config["emotion_task"])
+        except ExternalPlayerNotFound as exc:
+            show_message(win, f"SETUP ERROR\n\n{exc}\n\nPress SPACE to abort.", wait_key=["space", "return"])
+            raise
+        clips = load_emotion_manifest(str(REPO_ROOT / config["emotion_task"]["manifest_path"]))
+        block_order, selected_by_group = select_task_clips(clips, config["emotion_task"], ctx.rng)
 
         if not args.skip_questionnaire:
             run_consent_and_questionnaire(win, ctx, config)
         if not args.skip_familiarization:
-            run_familiarization(win, ctx, config)
+            win = run_familiarization(win, ctx, config, clips, selected_by_group, player_path)
 
-        run_attention_task(win, ctx)
+        win = run_emotion_task(win, ctx, block_order, selected_by_group, player_path)
 
         show_message(win, f"Break -- take a moment to relax.", duration=ctx.scaled(config["breaks"]["after_task1_min"] * 60))
-
-        clips = load_emotion_manifest(str(REPO_ROOT / config["emotion_task"]["manifest_path"]))
-        run_emotion_task(win, ctx, clips)
-
-        show_message(win, f"Break -- take a moment to relax.", duration=ctx.scaled(config["breaks"]["after_task2_min"] * 60))
 
         run_stress_task(win, ctx)
 
         show_message(
             win,
-            "DEBRIEF\n\nThat concludes the session. Thank you for participating!\n\n"
-            "The experimenter will now remove your sensors and answer any questions.\n\n"
+            "CONCLUSION\n\nThat concludes the emotion and stress portion of the session. Thank you!\n\n"
+            "Next: the attention/focus task (OpenMATB) runs separately as its own program.\n\n"
             "Press SPACE to end.",
             wait_key=["space", "return"],
         )

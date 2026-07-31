@@ -18,6 +18,7 @@ class SessionContext:
     participant_id: str
     demo_scale: float
     rng: random.Random
+    window_kwargs: dict | None = None
 
     def scaled(self, seconds: float) -> float:
         return seconds * self.demo_scale

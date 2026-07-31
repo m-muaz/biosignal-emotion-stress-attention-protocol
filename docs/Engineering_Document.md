@@ -41,7 +41,7 @@ Timeline is based on Lili's 60-minute structure (task *content* adapted from Yin
 |---|---|---|
 | Preparation (consent, questionnaire, sensor fitting, **BLE clock sync**) | 10 min | Sync happens here, once, right before recording starts on each device |
 | Familiarization walkthrough | 3 min | See §3.2 |
-| Task 1: Attention (spatial n-back) | 15 min | See §4.1 |
+| Task 1: Attention (OpenMATB) | 15 min | See §4.1 |
 | Break | 3 min | |
 | Task 2: Emotion (FilmStim clips) | 20 min | See §4.2 |
 | Break | 2 min | |
@@ -55,18 +55,20 @@ Task order (Attention → Emotion → Stress) is fixed, matching both source doc
 
 | Task | Classes | Trials/class | Total trials |
 |---|---|---|---|
-| Attention | 0-back / 1-back / 2-back | 3 | 9 |
+| Attention | *(retired — see §4.1: continuous OpenMATB run, not discrete trials/classes)* | — | — |
 | Emotion | Positive / Negative / Neutral | 3 | 9 |
 | Stress | Tier-1 / Tier-2 / Tier-3 (each paired with its own baseline) | 1 baseline + 1 arithmetic per tier | 3 baseline + 3 arithmetic = 6 |
-| **Total** | — | — | **24** |
+| **Total (Emotion + Stress)** | — | — | **15**, plus one continuous Attention run |
+
+Attention dropped out of this discrete-trial/class framework when its design changed from spatial n-back to OpenMATB (§4.1) — a continuous vigilance task with no per-trial class label. Its analysis unit is the continuous stream (sysmon HIT/MISS/response-time events, resman tank/pump state) rather than a balanced trial count.
 
 ### 3.2 Familiarization Walkthrough
 
 Runs once, after sensors are fitted and BLE-synced, before any real (recorded/scored) trial of any task. Purpose: make sure the participant understands the environment and response mechanics before it matters, generalizing the "demo trial" idea from the MAT paper to the whole session rather than just the stress task.
 
-Content (untimed data, not part of the 24-trial dataset):
+Content (untimed data, not part of the scored dataset):
 1. Comfort/contact check — confirm electrodes/wristband feel secure, headphones fit, screen is clearly visible.
-2. One non-scored n-back trial (a few flashes, one button press) so the response mechanic is understood.
+2. A brief static preview of what the OpenMATB attention task screen looks like (its own on-screen instructions cover the controls in detail once the real/practice run starts — see §4.1).
 3. One non-scored sample arithmetic question shown with the real UI (countdown timer, "hurry up" flash, dummy leaderboard visible) so the participant knows what those elements mean before Task 3 starts for real.
 4. A preview of the video + rating screen layout using a placeholder/neutral clip, just long enough to walk through what the rating scale looks like (see §3.3/§4.2) — not a full clip viewing.
 
@@ -74,7 +76,7 @@ Content (untimed data, not part of the 24-trial dataset):
 
 **Consent screen must explicitly state** (per your direction that participants should know exactly what they're in for):
 - Study purpose: collecting biosignals to study emotion, stress, and attention/focus states for machine learning research.
-- What will happen, in plain language: (1) an attention/memory grid game, (2) watching short video clips and rating your emotional reaction to each, (3) a timed mental arithmetic task with a countdown timer and leaderboard designed to be mildly stressful.
+- What will happen, in plain language: (1) a monitoring & resource-management task (OpenMATB, an existing, widely-used attention/workload task battery), (2) watching short video clips and rating your emotional reaction to each, (3) a timed mental arithmetic task with a countdown timer and leaderboard designed to be mildly stressful.
 - Sensors worn: two ear-EEG devices (in-ear and around-ear), a wristband (heart rate/PPG, motion, skin temperature, skin conductance), and — for some participants — a 32-channel EEG cap (Emotiv Flex). All non-invasive.
 - Total duration (~63 min per §3).
 - Data collected: physiological signals, task responses/accuracy, self-report ratings. No audio/video recording of the participant unless a separate consent line is added for that.
@@ -100,28 +102,21 @@ This is a first-pass draft, not finalized — needs a review pass from Lili/Yina
 
 ## 4. Task Designs
 
-### 4.1 Task 1 — Attention: Spatial N-Back
+### 4.1 Task 1 — Attention: OpenMATB (Monitoring + Resource Management)
 
-**Rationale:** avoids reusing video stimuli (which would overload/confound with Task 2's video-based emotion induction), and fuses sustained attention with a light working-memory component without becoming memory-dominant.
+**Original design (retired):** a spatial n-back grid task (0/1/2-back, discrete trials). Code kept, commented out, in `app/tasks/attention_nback.py`. Retired because a discrete-trial design can't produce a *continuous* attention/focus signal — the whole point of pairing this task with continuously-recorded biosignals.
 
-**Design:**
-- Stimulus: one cell in a 3×3 grid highlights per trial.
-- Participant presses a button if the current position matches the position from *n* trials back.
-- Conditions: **0-back** (react to a fixed target position — vigilance/near-zero memory load), **1-back**, **2-back**. Capped at 2-back deliberately — do not extend to 3-back, which shifts the task from attention-dominant to memory-dominant.
-- SOA (stimulus onset asynchrony): ~2.5 s (deliberately unhurried; this is not a speed task).
-- Block length: 60 s of continuous trials (~24 trials/block at 2.5 s SOA).
+**Current design:** [OpenMATB](https://github.com/juliencegarra/OpenMATB), an existing, validated re-implementation of the NASA Multi-Attribute Task Battery, run as a subprocess (see `app/tasks/attention_openmatb.py` and README.md's "Attention task (OpenMATB)"). Rather than building continuous-vigilance measurement from scratch, this reuses a task battery already established in the workload/vigilance literature (and already used alongside biosensors in prior studies).
 
-**Per-trial/block structure** (mirrors the cue→task→rest pattern from Yinan's doc):
+**Subtasks used:** `sysmon` (system monitoring: 4 moving-arrow scales + 2 lights, keys F1–F6) and `resman` (resource management: 6 fuel tanks, pumps toggled via NUM_1–NUM_8). Both run continuously and simultaneously for the whole block. `track` (tracking) and `communications` are deliberately **not** used: `track` requires a physical joystick with no keyboard/mouse fallback anywhere in OpenMATB (none available in this protocol's setup), and `communications` requires audio callsign assets not present in the repo.
 
+**Task structure:**
 ```
-Cue (5s, auditory) → N-back block (60s) → Rest (15s)
+Instructions (untimed, our PsychoPy window) → Practice run (~60s, OpenMATB, not scored) → Main run (~12 min, OpenMATB, scored)
 ```
+Sysmon failures (which gauge, when) are pseudo-random per participant, generated from the session's seeded RNG at scenario-build time — see `_generate_sysmon_failures` in `app/tasks/attention_openmatb.py`. Resman uses OpenMATB's own default tank/pump wiring (matches how MATB is used in the published literature) rather than hand-tuned parameters.
 
-9 blocks (3 per condition, condition order randomized per participant) × 80s = 720s = 12 min, leaving ~3 min of the 15-min budget for instructions + one practice block (untimed, not recorded as data) before the formal session.
-
-**Target accuracy bands (pilot-tunable, not hardcoded):** 0-back ≥95%, 1-back ~85%, 2-back ~70–75%. If pilot 2-back accuracy falls well below this band, reduce difficulty (slower SOA and/or fewer distractor positions) rather than accept memory-overload confounds.
-
-**Logged per trial:** condition (n-back level), stimulus position, is-target (bool), participant response, RT, correct/incorrect, trial onset/offset timestamps (host clock).
+**Logging:** OpenMATB logs its own CSV (HIT/MISS/false-alarm + response time per sysmon gauge event, tank levels/pump states over time) with subprocess-local timestamps, copied into the session folder after each run (`openmatb_practice_log.csv`, `openmatb_main_log.csv`) alongside the generated scenario file, for provenance. Our own event log brackets each run with host-clock `task_start`/`task_end`/`openmatb_subprocess_start`/`openmatb_subprocess_end` events — same "host clock as source of truth, per-device data mapped back to it" philosophy as the wearables (§2), not sub-second-precision alignment (that precision requirement belongs to the wearables' BLE sync, not this secondary behavioral log).
 
 ### 4.2 Task 2 — Emotion: FilmStim Clips
 
@@ -231,7 +226,7 @@ condition_label, event_type, event_payload_json
 
 `event_type` examples: `session_start`, `device_sync`, `device_recording_start`, `task_start`, `block_start`, `trial_start`, `stimulus_onset`, `response`, `rating_response`, `block_end`, `task_end`, `session_end`.
 
-`event_payload_json` carries task-specific fields (e.g., n-back position/target/response, clip_id/valence_group, arithmetic tier/operands/answer) so the schema stays uniform across tasks while remaining fully descriptive.
+`event_payload_json` carries task-specific fields (e.g., OpenMATB subprocess/log references, clip_id/valence_group, arithmetic tier/operands/answer) so the schema stays uniform across tasks while remaining fully descriptive.
 
 ---
 
@@ -245,7 +240,7 @@ condition_label, event_type, event_payload_json
 app/
   main.py                   # session runner / state machine (prep -> task1 -> break -> task2 -> break -> task3 -> debrief)
   config/
-    session_config.yaml     # timings, tier params, n-back params, randomization seeds
+    session_config.yaml     # timings, tier params, OpenMATB scenario params, randomization seeds
     emotion_manifest.json   # clip_id -> file_path, fine_grained_label, valence_group, duration
   sync/
     device_sync.py          # DeviceSyncManager, SyncRecord schema, per-device-family adapter dispatch
@@ -255,7 +250,8 @@ app/
     wristband_sync.py        # wraps/reuses ble_sync_wristbands.py's SYNC_MS protocol
     emotiv_link.py            # Emotiv Flex integration (LSL or Cortex API) - TBD
   tasks/
-    attention_nback.py       # spatial n-back task module
+    attention_openmatb.py    # OpenMATB subprocess orchestration (scenario generation, config.ini, log hand-back)
+    attention_nback.py       # retired spatial n-back task module (commented out, kept for reference)
     emotion_faced.py         # video presentation + rating module
     stress_mat.py            # tiered arithmetic + MAT-style UI module
   logging/
@@ -265,7 +261,7 @@ app/
     common_widgets.py        # countdown timer, leaderboard widget, rating scale widget, fixation cross, cue screens
 ```
 
-Each task module is responsible only for presenting stimuli and returning structured events to the shared `event_logger`; randomization, timing, and config are read from `session_config.yaml`/`emotion_manifest.json` rather than hardcoded, so tier difficulty, n-back parameters, and clip assignments can all be retuned after piloting without code changes.
+Each task module is responsible only for presenting stimuli and returning structured events to the shared `event_logger`; randomization, timing, and config are read from `session_config.yaml`/`emotion_manifest.json` rather than hardcoded, so tier difficulty, OpenMATB scenario parameters, and clip assignments can all be retuned after piloting without code changes.
 
 ---
 
@@ -278,7 +274,7 @@ Each task module is responsible only for presenting stimuli and returning struct
 5. **Wristband API** — RESOLVED. `ble_sync_wristbands.py` (provided) covers BLE sync via Nordic UART + `SYNC_MS` command; see §5.2.1. Firmware source for the wristband itself not yet reviewed — flag if data-streaming/SD-readout details are also needed, not just sync.
 6. **FilmStim clip files** — currently on a separate machine; app will be built/tested against placeholder clips via the manifest schema until real files are transferred.
 7. **Informed consent / pre-session questionnaire content** — draft spec written in §3.3; still needs a review pass from Lili/Yinan and confirmation of any IRB-mandated language.
-8. **Pilot calibration pass** — the n-back accuracy bands (§4.1) and stress tier accuracy bands (§4.3) are design targets, not measured values; plan a small pilot (n=2–3) before full data collection to tune SOA/tier parameters against these targets.
+8. **Pilot calibration pass** — the stress tier accuracy bands (§4.3) are design targets, not measured values; plan a small pilot (n=2–3) before full data collection to tune tier parameters against these targets. For Attention (§4.1), pilot the sysmon failure-interval range and resman defaults against a target sysmon HIT rate/response-time band (not yet defined — set after first pilot runs).
 
 ---
 
@@ -286,7 +282,7 @@ Each task module is responsible only for presenting stimuli and returning struct
 
 1. Session state machine + config loading + event logger (skeleton, no real tasks yet) — establishes the timing/logging backbone everything else plugs into.
 2. BLE device sync module against one real device (whichever is easiest to get firmware access to first), with the extension-point interface from §5.3.
-3. Task 1 (n-back) — simplest UI, validates the cue/block/rest timing pattern and response logging.
+3. Task 1 (OpenMATB) — validates the subprocess launch, scenario generation, and log hand-back pipeline.
 4. Task 3 (stress/MAT-style) — validates the countdown/leaderboard/hurry-up widgets and per-question logging.
 5. Task 2 (emotion) — validates video playback + manifest-driven stimulus loading + rating widget (with placeholder clips).
 6. Full session integration run (all three tasks + breaks + debrief) against placeholder/mock devices.

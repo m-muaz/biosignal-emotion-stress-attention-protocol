@@ -15,3 +15,9 @@ assets/clips/
 *.mpg
 *.mov
 *.avi
+*.webm
+
+# OpenMATB (attention task engine) is a separate open-source project, run as
+# a subprocess -- vendored as an external, unmodified checkout, not part of
+# this repo's history. See README.md "Attention task (OpenMATB)".
+vendor/OpenMATB/

@@ -1,68 +1,527 @@
 {
-  "_comment": "Placeholder clip manifest. file_path entries point at assets/placeholder_clips/ which do not contain real video files yet -- the emotion task module falls back to a procedurally-rendered placeholder (colored rect + label) when file_path does not exist, so the app runs end-to-end without real media. Swap file_path values to the real FilmStim exports and this fallback stops triggering automatically.",
+  "_comment": "OpenLAV (Open Library of Affective Videos) clips, replacing the earlier FilmStim set (see project memory for that history). assets/clips is now a junction to D:\\Datasets\\OpenLAV (was D:\\videos). category->valence_group: joy/satisfaction/fascination -> positive, anxiety/fear/sadness -> negative, indifference -> neutral. disgust was intentionally dropped from negative per explicit user request (2026-07-30). surprise/compassion/irritation/rage excluded (ambiguous valence or too few clips -- see build script comments). Every clip here is language_free=TRUE per the dataset's own metadata (no spoken dialogue/narration), so there is no language-bias concern at all this time, unlike the FilmStim French-clips issue. Manifest deliberately includes the FULL language_free pool per mapped category (not a hand-picked subset) so run_emotion_task's existing per-session random group_clips shuffle draws from real variety -- every participant should see a different set of clips, not the same ~8 recycled each time.",
   "clips": [
     {
-      "clip_id": "pos_01",
-      "valence_group": "positive",
-      "fine_grained_label": "amusement",
-      "file_path": "assets/placeholder_clips/pos_01.mp4",
-      "duration_sec": 90
-    },
-    {
-      "clip_id": "pos_02",
-      "valence_group": "positive",
-      "fine_grained_label": "tenderness",
-      "file_path": "assets/placeholder_clips/pos_02.mp4",
-      "duration_sec": 90
-    },
-    {
-      "clip_id": "pos_03",
+      "clip_id": "clip_01",
       "valence_group": "positive",
       "fine_grained_label": "joy",
-      "file_path": "assets/placeholder_clips/pos_03.mp4",
-      "duration_sec": 90
+      "title": "VID_304",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_304.webm",
+      "duration_sec": 48.0
     },
     {
-      "clip_id": "neg_01",
+      "clip_id": "clip_02",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_508",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_508.webm",
+      "duration_sec": 44.0
+    },
+    {
+      "clip_id": "clip_03",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_509",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_509.webm",
+      "duration_sec": 20.0
+    },
+    {
+      "clip_id": "clip_04",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_517",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_517.webm",
+      "duration_sec": 45.0
+    },
+    {
+      "clip_id": "clip_05",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_518",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_518.webm",
+      "duration_sec": 13.0
+    },
+    {
+      "clip_id": "clip_06",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_522",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_522.webm",
+      "duration_sec": 37.0
+    },
+    {
+      "clip_id": "clip_07",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_712",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_712.webm",
+      "duration_sec": 62.0
+    },
+    {
+      "clip_id": "clip_08",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_721",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_721.webm",
+      "duration_sec": 21.0
+    },
+    {
+      "clip_id": "clip_09",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_723",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_723.webm",
+      "duration_sec": 16.0
+    },
+    {
+      "clip_id": "clip_10",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_819",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/joy/VID_819.webm",
+      "duration_sec": 41.0
+    },
+    {
+      "clip_id": "clip_11",
+      "valence_group": "positive",
+      "fine_grained_label": "satisfaction",
+      "title": "VID_402",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/satisfaction/VID_402.webm",
+      "duration_sec": 47.0
+    },
+    {
+      "clip_id": "clip_12",
+      "valence_group": "positive",
+      "fine_grained_label": "satisfaction",
+      "title": "VID_902",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/satisfaction/VID_902.webm",
+      "duration_sec": 23.0
+    },
+    {
+      "clip_id": "clip_13",
+      "valence_group": "positive",
+      "fine_grained_label": "satisfaction",
+      "title": "VID_903",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/satisfaction/VID_903.webm",
+      "duration_sec": 20.0
+    },
+    {
+      "clip_id": "clip_14",
+      "valence_group": "positive",
+      "fine_grained_label": "satisfaction",
+      "title": "VID_904",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/satisfaction/VID_904.webm",
+      "duration_sec": 21.0
+    },
+    {
+      "clip_id": "clip_15",
+      "valence_group": "positive",
+      "fine_grained_label": "satisfaction",
+      "title": "VID_905",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/satisfaction/VID_905.webm",
+      "duration_sec": 46.0
+    },
+    {
+      "clip_id": "clip_16",
+      "valence_group": "positive",
+      "fine_grained_label": "satisfaction",
+      "title": "VID_907",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/satisfaction/VID_907.webm",
+      "duration_sec": 68.0
+    },
+    {
+      "clip_id": "clip_17",
+      "valence_group": "positive",
+      "fine_grained_label": "satisfaction",
+      "title": "VID_909",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/satisfaction/VID_909.webm",
+      "duration_sec": 42.0
+    },
+    {
+      "clip_id": "clip_18",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_403",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_403.webm",
+      "duration_sec": 27.0
+    },
+    {
+      "clip_id": "clip_19",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_404",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_404.webm",
+      "duration_sec": 40.0
+    },
+    {
+      "clip_id": "clip_20",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_406",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_406.webm",
+      "duration_sec": 48.0
+    },
+    {
+      "clip_id": "clip_21",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_407",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_407.webm",
+      "duration_sec": 55.0
+    },
+    {
+      "clip_id": "clip_22",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_409",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_409.webm",
+      "duration_sec": 56.0
+    },
+    {
+      "clip_id": "clip_23",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_702",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_702.webm",
+      "duration_sec": 23.0
+    },
+    {
+      "clip_id": "clip_24",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_708",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_708.webm",
+      "duration_sec": 22.0
+    },
+    {
+      "clip_id": "clip_25",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_710",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_710.webm",
+      "duration_sec": 13.0
+    },
+    {
+      "clip_id": "clip_26",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_711",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_711.webm",
+      "duration_sec": 26.0
+    },
+    {
+      "clip_id": "clip_27",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_718",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_718.webm",
+      "duration_sec": 25.0
+    },
+    {
+      "clip_id": "clip_28",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_719",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fascination/VID_719.webm",
+      "duration_sec": 30.0
+    },
+    {
+      "clip_id": "clip_29",
       "valence_group": "negative",
-      "fine_grained_label": "sadness",
-      "file_path": "assets/placeholder_clips/neg_01.mp4",
-      "duration_sec": 90
+      "fine_grained_label": "anxiety",
+      "title": "VID_104",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/anxiety/VID_104.webm",
+      "duration_sec": 56.0
     },
     {
-      "clip_id": "neg_02",
+      "clip_id": "clip_30",
+      "valence_group": "negative",
+      "fine_grained_label": "anxiety",
+      "title": "VID_108",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/anxiety/VID_108.webm",
+      "duration_sec": 33.0
+    },
+    {
+      "clip_id": "clip_31",
+      "valence_group": "negative",
+      "fine_grained_label": "anxiety",
+      "title": "VID_113",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/anxiety/VID_113.webm",
+      "duration_sec": 60.0
+    },
+    {
+      "clip_id": "clip_32",
+      "valence_group": "negative",
+      "fine_grained_label": "anxiety",
+      "title": "VID_117",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/anxiety/VID_117.webm",
+      "duration_sec": 48.0
+    },
+    {
+      "clip_id": "clip_33",
+      "valence_group": "negative",
+      "fine_grained_label": "anxiety",
+      "title": "VID_617",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/anxiety/VID_617.webm",
+      "duration_sec": 37.0
+    },
+    {
+      "clip_id": "clip_34",
+      "valence_group": "negative",
+      "fine_grained_label": "anxiety",
+      "title": "VID_817",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/anxiety/VID_817.webm",
+      "duration_sec": 13.0
+    },
+    {
+      "clip_id": "clip_35",
       "valence_group": "negative",
       "fine_grained_label": "fear",
-      "file_path": "assets/placeholder_clips/neg_02.mp4",
-      "duration_sec": 90
+      "title": "VID_115",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fear/VID_115.webm",
+      "duration_sec": 23.0
     },
     {
-      "clip_id": "neg_03",
+      "clip_id": "clip_36",
       "valence_group": "negative",
-      "fine_grained_label": "disgust",
-      "file_path": "assets/placeholder_clips/neg_03.mp4",
-      "duration_sec": 90
+      "fine_grained_label": "fear",
+      "title": "VID_119",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fear/VID_119.webm",
+      "duration_sec": 32.0
     },
     {
-      "clip_id": "neu_01",
-      "valence_group": "neutral",
-      "fine_grained_label": "neutral",
-      "file_path": "assets/placeholder_clips/neu_01.mp4",
-      "duration_sec": 90
+      "clip_id": "clip_37",
+      "valence_group": "negative",
+      "fine_grained_label": "fear",
+      "title": "VID_121",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fear/VID_121.webm",
+      "duration_sec": 60.0
     },
     {
-      "clip_id": "neu_02",
-      "valence_group": "neutral",
-      "fine_grained_label": "neutral",
-      "file_path": "assets/placeholder_clips/neu_02.mp4",
-      "duration_sec": 90
+      "clip_id": "clip_38",
+      "valence_group": "negative",
+      "fine_grained_label": "fear",
+      "title": "VID_122",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fear/VID_122.webm",
+      "duration_sec": 23.0
     },
     {
-      "clip_id": "neu_03",
+      "clip_id": "clip_39",
+      "valence_group": "negative",
+      "fine_grained_label": "fear",
+      "title": "VID_123",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/fear/VID_123.webm",
+      "duration_sec": 41.0
+    },
+    {
+      "clip_id": "clip_40",
+      "valence_group": "negative",
+      "fine_grained_label": "sadness",
+      "title": "VID_601",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/sadness/VID_601.webm",
+      "duration_sec": 19.0
+    },
+    {
+      "clip_id": "clip_41",
+      "valence_group": "negative",
+      "fine_grained_label": "sadness",
+      "title": "VID_602",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/sadness/VID_602.webm",
+      "duration_sec": 29.0
+    },
+    {
+      "clip_id": "clip_42",
+      "valence_group": "negative",
+      "fine_grained_label": "sadness",
+      "title": "VID_805",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/sadness/VID_805.webm",
+      "duration_sec": 56.0
+    },
+    {
+      "clip_id": "clip_43",
+      "valence_group": "negative",
+      "fine_grained_label": "sadness",
+      "title": "VID_813",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/sadness/VID_813.webm",
+      "duration_sec": 12.0
+    },
+    {
+      "clip_id": "clip_44",
       "valence_group": "neutral",
-      "fine_grained_label": "neutral",
-      "file_path": "assets/placeholder_clips/neu_03.mp4",
-      "duration_sec": 90
+      "fine_grained_label": "indifference",
+      "title": "VID_1001",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1001.webm",
+      "duration_sec": 21.0
+    },
+    {
+      "clip_id": "clip_45",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1002",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1002.webm",
+      "duration_sec": 20.0
+    },
+    {
+      "clip_id": "clip_46",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1003",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1003.webm",
+      "duration_sec": 20.0
+    },
+    {
+      "clip_id": "clip_47",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1004",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1004.webm",
+      "duration_sec": 35.0
+    },
+    {
+      "clip_id": "clip_48",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1005",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1005.webm",
+      "duration_sec": 30.0
+    },
+    {
+      "clip_id": "clip_49",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1007",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1007.webm",
+      "duration_sec": 31.0
+    },
+    {
+      "clip_id": "clip_50",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1009",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1009.webm",
+      "duration_sec": 22.0
+    },
+    {
+      "clip_id": "clip_51",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1010",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1010.webm",
+      "duration_sec": 30.0
+    },
+    {
+      "clip_id": "clip_52",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1013",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1013.webm",
+      "duration_sec": 36.0
+    },
+    {
+      "clip_id": "clip_53",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1017",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1017.webm",
+      "duration_sec": 12.0
+    },
+    {
+      "clip_id": "clip_54",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1020",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_1020.webm",
+      "duration_sec": 20.0
+    },
+    {
+      "clip_id": "clip_55",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_405",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_405.webm",
+      "duration_sec": 24.0
+    },
+    {
+      "clip_id": "clip_56",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_510",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_510.webm",
+      "duration_sec": 13.0
+    },
+    {
+      "clip_id": "clip_57",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_901",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_901.webm",
+      "duration_sec": 20.0
+    },
+    {
+      "clip_id": "clip_58",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_908",
+      "language": "none (language_free source clip)",
+      "file_path": "assets/clips/indifference/VID_908.webm",
+      "duration_sec": 45.0
     }
   ]
 }

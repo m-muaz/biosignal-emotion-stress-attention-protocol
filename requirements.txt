@@ -6,3 +6,11 @@ numpy
 psychopy
 bleak
 pyyaml
+
+# NOTE: OpenMATB (attention task engine, see README.md "Attention task
+# (OpenMATB)") deliberately does NOT get its deps installed here. PsychoPy
+# pins pyglet==1.4.11 on Windows for its own window backend, while OpenMATB
+# needs pyglet>=2.1,<3 (a backwards-incompatible rewrite -- pyglet 2.x removed
+# `pyglet.canvas` entirely, breaking PsychoPy's pygletbackend). Installing
+# OpenMATB's requirements.txt into this env WILL break PsychoPy's window.
+# OpenMATB gets its own isolated venv inside its checkout instead -- see README.
