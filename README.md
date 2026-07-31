@@ -42,6 +42,14 @@ python -m app.run_task --task stress --participant-id TEST001 --skip-device-sync
 
 Real video clips (currently sourced from the OpenLAV dataset) are **not** committed to this repo. Place them locally under `assets/clips/` (gitignored -- in practice a directory junction to wherever the dataset lives, e.g. `assets/clips -> D:\Datasets\OpenLAV`) and point `app/config/emotion_manifest.json` at that path. See the `_comment` field in `emotion_manifest.json` for the current clip/valence mapping and curation rationale.
 
+Use `scripts/download_openlav.py` to fetch the OpenLAV clips on a new machine (requires `pip install requests`):
+
+```
+python scripts/download_openlav.py --output D:\Datasets\OpenLAV
+```
+
+It scrapes the official PsychArchives item page for each clip's download link and metadata CSV, then sorts clips into per-emotion subfolders matching the layout `emotion_manifest.json` expects.
+
 Clips are played in an external video player -- [VLC](https://www.videolan.org/vlc/) by default, auto-detected on PATH or its common Windows install location -- rather than PsychoPy's own `MovieStim`, which had recurring decode-stall and early-cutoff bugs. Install VLC, or point `emotion_task.external_player_path` in `session_config.yaml` at a different player's `.exe`. Each clip runs fullscreen via `vlc --play-and-exit` and closes itself when playback ends (or if the participant closes it manually); our app just waits for that process to exit before showing the rating screen.
 
 Our own PsychoPy window is closed before VLC launches and reopened right after -- two apps each holding exclusive fullscreen on the same display at once is what caused VLC to sometimes render incorrectly when our own window was also fullscreen (same reasoning as the OpenMATB subprocess below). We also pass `--no-one-instance` (so playback always runs in the process we're actually waiting on, rather than being handed off via IPC to an already-running VLC) and `--qt-continue=0` (so a "continue playback where you left off?" dialog can't silently block `--play-and-exit` forever) -- together these were the two causes of playback occasionally not displaying correctly or never returning control to the app.
