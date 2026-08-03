@@ -49,12 +49,49 @@ emotion_task:
   fixation_duration_sec: 5
   rest_duration_sec: 5
   rating_duration_sec: 30
-  rating_scale_min: 0
+  rating_scale_min: 1
   rating_scale_max: 7
   rating_items: [valence, arousal, liking]
   dominance_enabled: false        # config-toggleable 4th rating item
   manifest_path: app/config/emotion_manifest.json
   external_player_path: null      # null -> auto-detect VLC (PATH or common install dirs); override with a specific player .exe
+  # clip_selection_mode: fixed -- every participant sees the SAME clips per
+  # PI request (2026-08-02), so results aren't confounded by which random
+  # clips a given participant happened to draw; only presentation order is
+  # randomized. The fixed set (app/config/emotion_fixed_clips.json) was
+  # chosen by ranking OpenLAV's video_data.csv arousal scores within each
+  # valence group -- see scripts/select_fixed_emotion_clips.py. Set to
+  # `random` to restore the old per-participant random sampling from the
+  # full manifest pool (legacy behavior, kept for future use).
+  clip_selection_mode: fixed
+  fixed_clips_path: app/config/emotion_fixed_clips.json
+  # block_structure: interleaved -- each block mixes valence groups (e.g.
+  # positive -> negative -> positive/negative/neutral) per PI request
+  # (2026-08-02), instead of one valence per block. Set to
+  # `grouped_by_valence` to restore the old FACED-style same-valence blocks
+  # (legacy behavior, kept for future use -- also overridable via
+  # `--emotion-block-structure` in app/run_task.py for quick testing).
+  block_structure: interleaved
+  # clip_transition_mode: persistent -- reuses ONE long-lived VLC process
+  # (driven via its RC interface, see app/tasks/vlc_rc_player.py) across
+  # every clip this session, instead of spawning a fresh vlc.exe per clip --
+  # this removes the per-clip process-spawn + decoder-init + fullscreen-entry
+  # cost, which is most of the remaining flicker on each clip transition.
+  # Automatically (and permanently, for the rest of the session) falls back
+  # to `hide` if the persistent VLC process ever errors out.
+  # `hide` just hides our own window while VLC plays each clip (a pyglet
+  # "fullscreen" window on Windows is a borderless topmost window, not real
+  # exclusive fullscreen, so hiding it fully gets it out of VLC's way without
+  # the cost of tearing down/recreating the GL context) -- still spawns a
+  # fresh VLC process per clip, so some flash remains, but no window-teardown
+  # cost on our side.
+  # `close_reopen` is the original behavior (fully closes and recreates our
+  # window around each clip, on top of a fresh VLC process per clip) -- a
+  # last-resort fallback if even `hide` ever resurfaces the VLC rendering
+  # glitches that motivated closing the window in the first place.
+  # All three are overridable via `--emotion-clip-transition` in
+  # app/run_task.py for quick testing.
+  clip_transition_mode: persistent
 
 stress_task:
   duration_min: 8

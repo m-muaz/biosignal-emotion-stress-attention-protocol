@@ -1,0 +1,17 @@
+# Manually-picked clips to add/use, one per line: VID_code,valence_group
+# valence_group must be one of: positive, negative, neutral
+# Lines starting with # (or blank lines) are ignored.
+# Fill this in, then run: python scripts/add_manual_clips.py scripts/manual_clips.txt
+#
+# Example (VID_906 is on disk in assets/clips/joy/ but was excluded from the
+# manifest because video_data.csv marks it language_free=FALSE):
+# VID_906,positive
+VID_906, positive
+VID_604, positive
+VID_408, positive
+VID_817, negative
+VID_119, negative
+VID_624, negative
+VID_1019, neutral
+VID_901, neutral
+VID_1002, neutral

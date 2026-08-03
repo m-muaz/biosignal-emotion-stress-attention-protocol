@@ -522,6 +522,51 @@
       "language": "none (language_free source clip)",
       "file_path": "assets/clips/indifference/VID_908.webm",
       "duration_sec": 45.0
+    },
+    {
+      "clip_id": "clip_59",
+      "valence_group": "positive",
+      "fine_grained_label": "joy",
+      "title": "VID_906",
+      "language": "contains spoken dialogue/narration (language_free=FALSE) -- included by explicit request",
+      "file_path": "assets/clips/joy/VID_906.webm",
+      "duration_sec": 58.0
+    },
+    {
+      "clip_id": "clip_60",
+      "valence_group": "positive",
+      "fine_grained_label": "compassion",
+      "title": "VID_604",
+      "language": "contains spoken dialogue/narration (language_free=FALSE) -- included by explicit request",
+      "file_path": "assets/clips/compassion/VID_604.webm",
+      "duration_sec": 30.0
+    },
+    {
+      "clip_id": "clip_61",
+      "valence_group": "positive",
+      "fine_grained_label": "fascination",
+      "title": "VID_408",
+      "language": "contains spoken dialogue/narration (language_free=FALSE) -- included by explicit request",
+      "file_path": "assets/clips/fascination/VID_408.webm",
+      "duration_sec": 47.0
+    },
+    {
+      "clip_id": "clip_62",
+      "valence_group": "negative",
+      "fine_grained_label": "sadness",
+      "title": "VID_624",
+      "language": "contains spoken dialogue/narration (language_free=FALSE) -- included by explicit request",
+      "file_path": "assets/clips/sadness/VID_624.webm",
+      "duration_sec": 61.0
+    },
+    {
+      "clip_id": "clip_63",
+      "valence_group": "neutral",
+      "fine_grained_label": "indifference",
+      "title": "VID_1019",
+      "language": "contains spoken dialogue/narration (language_free=FALSE) -- included by explicit request",
+      "file_path": "assets/clips/indifference/VID_1019.webm",
+      "duration_sec": 19.0
     }
   ]
 }
