@@ -98,8 +98,23 @@ stress_task:
   baseline_duration_sec: 10
   arithmetic_duration_sec: 60
   hurry_up_threshold_fraction: 0.8  # "HURRY UP!" (blinking) appears once this fraction of time REMAINS -- 0.8 = after 20% of the question's time has elapsed
-  leaderboard_names: [Alex, Sam, Jordan, Taylor, Casey]
-  leaderboard_scores: [95, 85, 80, 75, 66]
+  # Leaderboard is a MIST-style (Montreal Imaging Stress Task; Dedovic et al.
+  # 2005) rigged bogus-feedback manipulation, NOT a real leaderboard: the
+  # participant's row is real/live (leaderboard_participant_label), but
+  # leaderboard_rival_name's score is dynamically pinned just above the
+  # participant's own live score every question (see rig_rival_score in
+  # stress_mat.py) so the social-evaluative-threat effect holds regardless of
+  # how well the participant actually performs. leaderboard_fixed_* are
+  # ordinary static filler ranked below, for plausibility only.
+  # DECEPTION FLAG: this requires PI/IRB-approved debrief disclosure before
+  # use in a real session -- not yet confirmed as of 2026-07-31.
+  leaderboard_rival_name: Alex
+  leaderboard_participant_label: YOU
+  leaderboard_rigged_gap: 20      # rival's score = participant's own live score + this, clamped to [floor, cap]
+  leaderboard_rigged_floor: 70    # rival never shown below this even if participant's score is 0
+  leaderboard_rigged_cap: 99
+  leaderboard_fixed_names: [Sam, Jordan, Taylor, Casey]
+  leaderboard_fixed_scores: [65, 60, 55, 50]  # kept below rigged_floor so the rival reliably stays in 1st
   # Explicit trial sequence, in presentation order -- each entry is one tier id
   # from `tiers` below, and each trial is one baseline block followed by one
   # arithmetic block using that tier's question format (baseline_duration_sec/

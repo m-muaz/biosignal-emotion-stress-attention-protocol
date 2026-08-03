@@ -85,27 +85,66 @@ def generate_question(tier_cfg: dict, rng) -> tuple[str, int]:
     return " ".join(tokens), value
 
 
-def get_numeric_answer(win, expr_str, question_num, time_limit, leaderboard_names, leaderboard_scores, hurry_fraction):
+def rig_rival_score(participant_score: float, gap: float, floor: float, cap: float) -> int:
+    """MIST-style bogus performance feedback (Dedovic et al. 2005, Montreal
+    Imaging Stress Task): the rival's displayed score is dynamically pinned
+    just above the participant's own live score, rather than a fixed number,
+    so the social-evaluative-threat manipulation stays effective regardless
+    of how well the participant is actually doing.
+    """
+    return int(min(cap, max(floor, participant_score + gap)))
+
+
+def build_leaderboard(participant_score: float, leaderboard_cfg: dict):
+    """Assembles the (names, scores) rows shown this question: the rigged
+    rival (see rig_rival_score), the participant's own real/live score, and
+    the fixed filler names -- all re-sorted by score every call so the
+    on-screen ranking always matches the numbers shown.
+    """
+    rival_score = rig_rival_score(
+        participant_score,
+        leaderboard_cfg["rigged_gap"],
+        leaderboard_cfg["rigged_floor"],
+        leaderboard_cfg["rigged_cap"],
+    )
+    names = [leaderboard_cfg["rival_name"], leaderboard_cfg["participant_label"], *leaderboard_cfg["fixed_names"]]
+    scores = [rival_score, int(round(participant_score)), *leaderboard_cfg["fixed_scores"]]
+    order = sorted(range(len(names)), key=lambda i: -scores[i])
+    return [names[i] for i in order], [scores[i] for i in order], rival_score
+
+
+def get_numeric_answer(win, expr_str, question_num, time_limit, participant_score, leaderboard_cfg, hurry_fraction):
     """Renders the countdown/leaderboard/hurry-up UI and collects a typed answer.
 
-    Returns (answer:int|None, rt:float|None, raw_buffer:str, timed_out:bool, skipped:bool).
+    participant_score is the participant's own live score (as of the start of
+    this question) used to build the rigged leaderboard -- see build_leaderboard.
+
+    Returns (answer:int|None, rt:float|None, raw_buffer:str, timed_out:bool, skipped:bool, rival_score:int).
     Raises SkipBlock if SKIP_BLOCK_KEY is pressed, to end the whole block early.
     """
     clock = core.Clock()
     buffer = ""
     event.clearEvents()
+    names, scores, rival_score = build_leaderboard(participant_score, leaderboard_cfg)
 
     while True:
+        # Also catches a window-close click, not just Escape -- see
+        # check_quit/request_quit in common_widgets.py. This loop otherwise
+        # bypasses check_quit() (it does its own escape handling below,
+        # scoped to this question's keyList), so without this the close
+        # button wouldn't be noticed until the current question timed out.
+        check_quit()
+
         elapsed = clock.getTime()
         remaining = time_limit - elapsed
         if remaining <= 0:
-            return None, None, buffer, True, False
+            return None, None, buffer, True, False, rival_score
 
         frac_remaining = remaining / time_limit
         hurry = frac_remaining <= hurry_fraction
 
         draw_countdown_bar(win, frac_remaining, hurry)
-        draw_leaderboard(win, leaderboard_names, leaderboard_scores)
+        draw_leaderboard(win, names, scores, highlight_name=leaderboard_cfg["participant_label"])
 
         label = visual.TextStim(
             win, text=f"Question {question_num}", height=0.045,
@@ -132,13 +171,13 @@ def get_numeric_answer(win, expr_str, question_num, time_limit, leaderboard_name
             if key == SKIP_BLOCK_KEY:
                 raise SkipBlock()
             if key == SKIP_TRIAL_KEY:
-                return None, kt, buffer, False, True
+                return None, kt, buffer, False, True, rival_score
             if key == "return":
                 if buffer:
                     try:
-                        return int(buffer), kt, buffer, False, False
+                        return int(buffer), kt, buffer, False, False, rival_score
                     except ValueError:
-                        return None, kt, buffer, False, False
+                        return None, kt, buffer, False, False, rival_score
             elif key == "backspace":
                 buffer = buffer[:-1]
             elif key == "minus":
@@ -174,7 +213,7 @@ def run_baseline_block(win, ctx, tier_id: int, block_index: int, duration: float
     )
 
 
-def run_arithmetic_block(win, ctx, tier_cfg: dict, block_index: int, duration: float, leaderboard_names, leaderboard_scores, hurry_fraction: float):
+def run_arithmetic_block(win, ctx, tier_cfg: dict, block_index: int, duration: float, leaderboard_cfg: dict, hurry_fraction: float):
     tier_id = tier_cfg["id"]
     ctx.event_logger.log("block_start", task="stress", block_index=block_index, condition_label=f"tier_{tier_id}", tier=tier_id)
 
@@ -187,15 +226,20 @@ def run_arithmetic_block(win, ctx, tier_cfg: dict, block_index: int, duration: f
         check_quit()
         check_skip_block()
         question_num += 1
+        # Participant's live score (as of the start of this question, i.e.
+        # not counting the answer they're about to give) drives the rigged
+        # leaderboard for this question -- see build_leaderboard/rig_rival_score.
+        participant_score = 100.0 * correct_count / (question_num - 1) if question_num > 1 else 0.0
         expr_str, correct_answer = generate_question(tier_cfg, ctx.rng)
         ctx.event_logger.log(
             "trial_start", task="stress", block_index=block_index, trial_index=question_num,
             condition_label=f"tier_{tier_id}", tier=tier_id, expression=expr_str, correct_answer=correct_answer,
+            leaderboard_participant_score_shown=round(participant_score),
         )
         try:
-            answer, rt, raw_buffer, timed_out, skipped = get_numeric_answer(
+            answer, rt, raw_buffer, timed_out, skipped, rival_score = get_numeric_answer(
                 win, expr_str, question_num, tier_cfg["time_per_question_sec"],
-                leaderboard_names, leaderboard_scores, hurry_fraction,
+                participant_score, leaderboard_cfg, hurry_fraction,
             )
         except SkipBlock:
             ctx.event_logger.log(
@@ -212,6 +256,7 @@ def run_arithmetic_block(win, ctx, tier_cfg: dict, block_index: int, duration: f
             "response", task="stress", block_index=block_index, trial_index=question_num,
             condition_label=f"tier_{tier_id}", tier=tier_id, expression=expr_str, correct_answer=correct_answer,
             participant_answer=answer, raw_input=raw_buffer, rt=rt, correct=correct, timed_out=timed_out, skipped=skipped,
+            leaderboard_rival_score_shown=rival_score,
         )
 
     ctx.event_logger.log(
@@ -225,8 +270,15 @@ def run_stress_task(win, ctx):
     baseline_duration = ctx.scaled(cfg["baseline_duration_sec"])
     arithmetic_duration = ctx.scaled(cfg["arithmetic_duration_sec"])
     hurry_fraction = cfg["hurry_up_threshold_fraction"]
-    leaderboard_names = cfg["leaderboard_names"]
-    leaderboard_scores = cfg["leaderboard_scores"]
+    leaderboard_cfg = {
+        "rival_name": cfg["leaderboard_rival_name"],
+        "participant_label": cfg["leaderboard_participant_label"],
+        "fixed_names": cfg["leaderboard_fixed_names"],
+        "fixed_scores": cfg["leaderboard_fixed_scores"],
+        "rigged_gap": cfg["leaderboard_rigged_gap"],
+        "rigged_floor": cfg["leaderboard_rigged_floor"],
+        "rigged_cap": cfg["leaderboard_rigged_cap"],
+    }
 
     tier_by_id = {tier_cfg["id"]: tier_cfg for tier_cfg in cfg["tiers"]}
     try:
@@ -264,7 +316,7 @@ def run_stress_task(win, ctx):
         run_baseline_block(win, ctx, tier_cfg["id"], block_index, baseline_duration)
         run_arithmetic_block(
             win, ctx, tier_cfg, block_index + 1, arithmetic_duration,
-            leaderboard_names, leaderboard_scores, hurry_fraction,
+            leaderboard_cfg, hurry_fraction,
         )
 
     ctx.event_logger.log("task_end", task="stress")
