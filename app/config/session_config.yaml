@@ -167,16 +167,54 @@ devices:
 
 # First-pass draft (Engineering_Document.md §3.3) -- core battery only.
 # Add items here (not in code) to extend it; each type is handled generically
-# by app/main.py's questionnaire runner.
+# by app/main.py's questionnaire runner. Types: choice/numeric/rating (one
+# screen each, unchanged), multi_rating (several rating rows sharing one
+# scale on one screen, e.g. STAI-6/PANAS), group (several mixed choice/text
+# fields on one screen, e.g. demographics). Any item/field can be disabled
+# without deleting it via `enabled: false`.
 questionnaire:
   items:
-    - id: age
-      type: numeric
-      prompt: "What is your age?"
+    - id: age_range
+      type: choice
+      prompt: "What is your age range?"
+      options: ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
+
+    # Combined demographics screen (gender/education/native language) --
+    # grouped onto one fill-in-the-blanks screen instead of one screen per
+    # question, per PI request. NOTE: no single canonical gender-identity
+    # option list was found in the pre-trial-questionnaire literature search
+    # -- these are placeholders; swap in your IRB's standard demographics
+    # wording if it differs.
+    - id: demographics
+      type: group
+      prompt: "A few quick demographic questions."
+      fields:
+        - id: gender
+          type: choice
+          prompt: "Gender:"
+          options: ["Female", "Male", "Non-binary", "Prefer to self-describe", "Prefer not to say"]
+        - id: gender_self_describe
+          type: text
+          prompt: "Please specify:"
+          show_if: { field: gender, equals: "Prefer to self-describe" }
+        - id: education
+          type: dropdown
+          prompt: "Highest level of education completed:"
+          options: ["Less than high school", "High school diploma / GED", "Some college", "Bachelor's degree", "Graduate degree"]
+        - id: native_language
+          type: dropdown
+          prompt: "Native language:"
+          options: ["English", "Spanish", "Mandarin Chinese", "Hindi", "French", "Arabic", "Bengali", "Portuguese", "Russian", "Urdu", "Korean", "Vietnamese", "Other"]
+        - id: native_language_other
+          type: text
+          prompt: "Please specify your native language:"
+          show_if: { field: native_language, equals: "Other" }
+
     - id: handedness
       type: choice
       prompt: "Are you left-handed, right-handed, or ambidextrous?"
       options: ["Left-handed", "Right-handed", "Ambidextrous"]
+
     - id: sleep_hours_last_night
       type: numeric
       prompt: "How many hours did you sleep last night?"
@@ -184,12 +222,79 @@ questionnaire:
       type: choice
       prompt: "Have you had caffeine in the last 3 hours?"
       options: ["Yes", "No"]
-    - id: stress_baseline
-      type: rating
-      prompt: "Rate your current stress level right now."
-    - id: mood_baseline
-      type: rating
-      prompt: "Rate your current mood/energy right now."
+    # Added per research on standard EEG-study substance screening (alcohol
+    # 24h / nicotine are more common there than caffeine-only), but not yet
+    # turned on -- flip enabled: true when ready to use.
+    - id: alcohol_last_24h
+      type: choice
+      prompt: "Have you consumed alcohol in the last 24 hours?"
+      options: ["Yes", "No"]
+      enabled: false
+    - id: nicotine_today
+      type: choice
+      prompt: "Have you used nicotine/tobacco products today?"
+      options: ["Yes", "No"]
+      enabled: false
+
+    # STAI-6 (Marteau & Bekker, 1992): validated 6-item short-form state
+    # anxiety scale -- replaces the old single ad-hoc stress_baseline rating.
+    # Disabled per PI request: 6 items x 4 response options each was judged
+    # too many questions/options to ask at this point in the session. Kept
+    # here (not deleted) so it can be flipped back on later if needed.
+    - id: stai6
+      type: multi_rating
+      enabled: true
+      prompt: "For each statement, choose how you feel RIGHT NOW, at this moment."
+      scale_min: 1
+      scale_max: 4
+      left_label: "Not at all"
+      right_label: "Very much so"
+      items:
+        - id: stai_calm
+          prompt: "I feel calm"
+        - id: stai_tense
+          prompt: "I am tense"
+        - id: stai_upset
+          prompt: "I feel upset"
+        - id: stai_relaxed
+          prompt: "I am relaxed"
+        - id: stai_content
+          prompt: "I feel content"
+        - id: stai_worried
+          prompt: "I am worried"
+
+    # PANAS short form (I-PANAS-SF; Thompson, 2007) -- replaces the old
+    # single ad-hoc mood_baseline rating with validated positive/negative
+    # affect items.
+    - id: panas
+      type: multi_rating
+      enabled: false
+      prompt: "Indicate to what extent you feel this way RIGHT NOW, at this moment."
+      scale_min: 1
+      scale_max: 5
+      left_label: "Very slightly or not at all"
+      right_label: "Extremely"
+      items:
+        - id: panas_active
+          prompt: "Active"
+        - id: panas_alert
+          prompt: "Alert"
+        - id: panas_attentive
+          prompt: "Attentive"
+        - id: panas_determined
+          prompt: "Determined"
+        - id: panas_inspired
+          prompt: "Inspired"
+        - id: panas_afraid
+          prompt: "Afraid"
+        - id: panas_ashamed
+          prompt: "Ashamed"
+        - id: panas_hostile
+          prompt: "Hostile"
+        - id: panas_nervous
+          prompt: "Nervous"
+        - id: panas_upset
+          prompt: "Upset"
 
 logging:
   session_root: "./sessions"

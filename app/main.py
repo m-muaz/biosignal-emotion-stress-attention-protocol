@@ -27,7 +27,7 @@ from pathlib import Path
 
 from psychopy import visual
 
-from app.config.loader import load_config, load_emotion_manifest
+from app.config.loader import load_config, load_emotion_manifest, load_fixed_clips
 from app.context import SessionContext
 from app.eventlog.event_logger import EventLogger
 from app.eventlog.session_manifest import write_session_manifest
@@ -35,7 +35,9 @@ from app.sync.device_sync import sync_all_blocking
 from app.tasks.emotion_faced import (
     EMOTION_OPTIONS,
     EMOTION_PROMPT,
+    RATING_PROMPTS,
     ExternalPlayerNotFound,
+    close_persistent_session,
     pick_practice_clip,
     play_clip,
     resolve_external_player,
@@ -46,9 +48,13 @@ from app.tasks.stress_mat import generate_question, get_numeric_answer, run_stre
 from app.ui.common_widgets import (
     BG_COLOR,
     UserQuit,
+    _install_mouse_click_capture,
+    demographics_form,
     discrete_choice,
     numeric_entry,
     rating_scale_0_7,
+    rating_scale_multi,
+    request_quit,
     show_message,
     show_title_screen,
 )
@@ -83,17 +89,61 @@ def run_consent_and_questionnaire(win, ctx, cfg):
 
     responses = {}
     for item in cfg.get("questionnaire", {}).get("items", []):
-        item_id, item_type, prompt = item["id"], item["type"], item["prompt"]
-        if item_type == "choice":
-            value, rt = discrete_choice(win, prompt, item["options"])
-        elif item_type == "numeric":
-            value, rt = numeric_entry(win, prompt, allow_decimal=True)
-        elif item_type == "rating":
-            value, rt = rating_scale_0_7(win, prompt, cfg["emotion_task"]["rating_scale_min"], cfg["emotion_task"]["rating_scale_max"])
-        else:
+        # enabled defaults to True so existing items (with no `enabled` key)
+        # keep working unchanged -- items with enabled: false (e.g. the
+        # alcohol/nicotine screens, added but not yet turned on) are skipped.
+        if not item.get("enabled", True):
             continue
-        responses[item_id] = value
-        ctx.event_logger.log("questionnaire_response", task="preparation", item_id=item_id, value=value, rt=rt)
+
+        item_id, item_type = item["id"], item["type"]
+
+        if item_type == "choice":
+            value, rt = discrete_choice(win, item["prompt"], item["options"])
+            responses[item_id] = value
+            ctx.event_logger.log("questionnaire_response", task="preparation", item_id=item_id, value=value, rt=rt)
+
+        elif item_type == "numeric":
+            value, rt = numeric_entry(win, item["prompt"], allow_decimal=True)
+            responses[item_id] = value
+            ctx.event_logger.log("questionnaire_response", task="preparation", item_id=item_id, value=value, rt=rt)
+
+        elif item_type == "rating":
+            value, rt = rating_scale_0_7(win, item["prompt"], cfg["emotion_task"]["rating_scale_min"], cfg["emotion_task"]["rating_scale_max"])
+            responses[item_id] = value
+            ctx.event_logger.log("questionnaire_response", task="preparation", item_id=item_id, value=value, rt=rt)
+
+        elif item_type == "multi_rating":
+            # Several short rating items on one screen (e.g. STAI-6, PANAS
+            # short-form) -- each sub-item's id/prompt drives one row of
+            # rating_scale_multi, sharing this item's scale/endpoint labels.
+            if item.get("prompt"):
+                show_message(win, item["prompt"] + "\n\nPress SPACE to continue.", wait_key=["space", "return"])
+            left_label, right_label = item.get("left_label", "not at all"), item.get("right_label", "extremely")
+            sub_items = [(sub["id"], sub["prompt"], left_label, right_label) for sub in item["items"]]
+            results = rating_scale_multi(
+                win, sub_items,
+                scale_min=item["scale_min"], scale_max=item["scale_max"],
+            )
+            for sub_id, (value, rt) in results.items():
+                responses[sub_id] = value
+                ctx.event_logger.log("questionnaire_response", task="preparation", item_id=sub_id, value=value, rt=rt)
+
+        elif item_type == "group":
+            # Several mixed choice/text fields on one screen (e.g. gender,
+            # education, native language) instead of one screen per field.
+            if item.get("prompt"):
+                show_message(win, item["prompt"] + "\n\nPress SPACE to continue.", wait_key=["space", "return"])
+            fields = [
+                (
+                    f["id"], f["prompt"], f["type"], f.get("options"),
+                    (f["show_if"]["field"], f["show_if"]["equals"]) if f.get("show_if") else None,
+                )
+                for f in item["fields"] if f.get("enabled", True)
+            ]
+            results = demographics_form(win, fields)
+            for field_id, (value, rt) in results.items():
+                responses[field_id] = value
+                ctx.event_logger.log("questionnaire_response", task="preparation", item_id=field_id, value=value, rt=rt)
 
     return responses
 
@@ -130,11 +180,22 @@ def run_familiarization(win, ctx, cfg, clips, selected_by_group, player_path):
         "Press SPACE to play the practice clip.",
         wait_key=["space", "return"],
     )
-    win = play_clip(win, practice_clip, ctx.scaled(practice_clip.get("duration_sec", 90)), ctx=ctx, player_path=player_path, task_label="familiarization")
-    discrete_choice(win, EMOTION_PROMPT, EMOTION_OPTIONS)
+    win = play_clip(
+        win, practice_clip, ctx.scaled(practice_clip.get("duration_sec", 90)), ctx=ctx, player_path=player_path,
+        task_label="familiarization", transition_mode=cfg["emotion_task"].get("clip_transition_mode", "persistent"),
+    )
+    discrete_choice(win, EMOTION_PROMPT, EMOTION_OPTIONS, require_confirm=True)
+    # Reuses the real task's valence prompt/endpoint labels (see
+    # emotion_faced.RATING_PROMPTS) rather than rating_scale_0_7's generic
+    # "not at all"/"extremely" defaults -- those don't fit a bipolar item
+    # like valence (0 doesn't obviously mean "very unpleasant"), and the
+    # practice run should show the participant exactly what they'll see for
+    # real a few minutes later.
+    valence_prompt, valence_left, valence_right = RATING_PROMPTS["valence"]
     rating_scale_0_7(
-        win, "Rate your VALENCE (example only -- not a real clip).",
+        win, f"{valence_prompt} (example only -- not a real clip.)",
         cfg["emotion_task"]["rating_scale_min"], cfg["emotion_task"]["rating_scale_max"],
+        left_label=valence_left, right_label=valence_right,
     )
 
     show_message(
@@ -146,9 +207,18 @@ def run_familiarization(win, ctx, cfg, clips, selected_by_group, player_path):
     )
     sample_tier = cfg["stress_task"]["tiers"][0]
     expr_str, _ = generate_question(sample_tier, ctx.rng)
+    sample_leaderboard_cfg = {
+        "rival_name": cfg["stress_task"]["leaderboard_rival_name"],
+        "participant_label": cfg["stress_task"]["leaderboard_participant_label"],
+        "fixed_names": cfg["stress_task"]["leaderboard_fixed_names"],
+        "fixed_scores": cfg["stress_task"]["leaderboard_fixed_scores"],
+        "rigged_gap": cfg["stress_task"]["leaderboard_rigged_gap"],
+        "rigged_floor": cfg["stress_task"]["leaderboard_rigged_floor"],
+        "rigged_cap": cfg["stress_task"]["leaderboard_rigged_cap"],
+    }
     get_numeric_answer(
         win, expr_str, "example", sample_tier["time_per_question_sec"],
-        cfg["stress_task"]["leaderboard_names"], cfg["stress_task"]["leaderboard_scores"],
+        0.0, sample_leaderboard_cfg,
         cfg["stress_task"]["hurry_up_threshold_fraction"],
     )
 
@@ -182,7 +252,70 @@ def _raise_window_focus():
         pass
 
 
+def _set_windows_dpi_awareness():
+    """Declare this process per-monitor-DPI-aware, before any window exists.
+
+    Without this, Windows treats the process as DPI-unaware and silently
+    bitmap-stretches the whole window through the DWM compositor on any
+    display running above 100% scaling. In windowed mode that mismatch
+    between the logical size PsychoPy/pyglet asked for and what Windows
+    actually hands back means the rendered scene doesn't fill the visible
+    window -- the reported "questionnaire isn't fully scaled" symptom -- and
+    the extra per-frame compositor stretch pass is a likely contributor to
+    the reported general lagginess. Exclusive fullscreen bypasses DWM
+    composition entirely, which is why that same mode doesn't show either
+    symptom. Must run before the first window is created; no-ops on
+    non-Windows platforms or if the API isn't available.
+    """
+    import platform
+
+    if platform.system() != "Windows":
+        return
+    import ctypes
+
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except (AttributeError, OSError):
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except (AttributeError, OSError):
+            pass
+
+
+def _install_close_handler(win):
+    """Make the OS window-close button (the titlebar X) behave like Escape.
+
+    Without this, clicking X only tells pyglet to destroy the native window;
+    our own polling loops (check_quit() etc.) never see a key event for that,
+    so the Python process just keeps running against a dead window -- it
+    looks hung and has to be killed from the terminal.
+
+    This can't raise UserQuit directly: on Windows, on_close is invoked from
+    inside a ctypes WNDPROC callback driven by the Win32 message pump (see
+    pyglet.window.win32.Win32Window._event_close), not a normal Python call
+    stack -- an exception raised there is caught and silently discarded
+    ("Exception ignored on calling ctypes callback function") rather than
+    propagating up to main()'s try/except. Instead it sets a flag via
+    request_quit(); every polling loop already calls check_quit() every
+    frame (and psychopy's event.getKeys() itself calls win.dispatch_events()
+    on every call, pyglet's own event pump), so the flag is picked up almost
+    immediately and UserQuit is raised from plain Python code, same
+    clean-shutdown path as pressing Escape.
+
+    Returning True tells pyglet the event was handled, so it does NOT also
+    run its own default on_close behavior (destroying the window immediately)
+    -- we want our own finally: win.close() in main()/run_task.py to be what
+    actually tears the window down, after the normal except UserQuit cleanup.
+    """
+    def _on_close():
+        request_quit()
+        return True
+
+    win.winHandle.on_close = _on_close
+
+
 def main():
+    _set_windows_dpi_awareness()
     args = parse_args()
     config = load_config(args.config)
     if args.devices_mode:
@@ -202,6 +335,8 @@ def main():
 
     win = visual.Window(**window_kwargs)
     _raise_window_focus()
+    _install_close_handler(win)
+    _install_mouse_click_capture(win)
 
     try:
         print(f"Syncing devices (mode={config['devices']['mode']})...")
@@ -218,14 +353,17 @@ def main():
             show_message(win, f"SETUP ERROR\n\n{exc}\n\nPress SPACE to abort.", wait_key=["space", "return"])
             raise
         clips = load_emotion_manifest(str(REPO_ROOT / config["emotion_task"]["manifest_path"]))
-        block_order, selected_by_group = select_task_clips(clips, config["emotion_task"], ctx.rng)
+        fixed_clips = None
+        if config["emotion_task"].get("clip_selection_mode", "random") == "fixed":
+            fixed_clips = load_fixed_clips(str(REPO_ROOT / config["emotion_task"]["fixed_clips_path"]))
+        blocks, selected_by_group = select_task_clips(clips, config["emotion_task"], ctx.rng, fixed_clips=fixed_clips)
 
         if not args.skip_questionnaire:
             run_consent_and_questionnaire(win, ctx, config)
         if not args.skip_familiarization:
             win = run_familiarization(win, ctx, config, clips, selected_by_group, player_path)
 
-        win = run_emotion_task(win, ctx, block_order, selected_by_group, player_path)
+        win = run_emotion_task(win, ctx, blocks, player_path)
 
         show_message(win, f"Break -- take a moment to relax.", duration=ctx.scaled(config["breaks"]["after_task1_min"] * 60))
 
@@ -253,6 +391,7 @@ def main():
         traceback.print_exc()
         event_logger.log("session_crashed", task=None, traceback=traceback.format_exc())
     finally:
+        close_persistent_session()
         event_logger.close()
         win.close()
 
