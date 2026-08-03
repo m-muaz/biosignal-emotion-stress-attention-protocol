@@ -3,7 +3,6 @@
 PsychoPy application for the emotion/stress/attention biosignal collection session (out-ear EEG, in-ear EEG, wristband, optional Emotiv Flex cap).
 
 Full protocol design and rationale: [`docs/Engineering_Document.md`](docs/Engineering_Document.md).
-Source brainstorming docs and paper surveys behind those decisions: [`docs/reference/`](docs/reference/).
 
 ## Setup
 
