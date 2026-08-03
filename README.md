@@ -18,9 +18,10 @@ pip install -r requirements.txt
 
 `python -m app.main` runs the emotion + stress portion of the session (consent ->
 questionnaire -> familiarization -> emotion task -> break -> stress task ->
-conclusion). The attention/focus task (OpenMATB) is **not** part of this flow --
-it's a separate program, run as its own standalone step after this session
-ends (see "Attention task (OpenMATB)" below).
+conclusion). The attention/focus task is **not** part of this flow -- it's a
+separate program, run as its own standalone step after this session ends (see
+"Attention task (SART)" below; OpenMATB was the original choice but is being
+retired in favor of SART, pending PI sign-off -- see that section for why).
 
 ```bash
 python -m app.main --participant-id P001
@@ -54,9 +55,74 @@ Clips are played in an external video player -- [VLC](https://www.videolan.org/v
 
 Our own PsychoPy window is closed before VLC launches and reopened right after -- two apps each holding exclusive fullscreen on the same display at once is what caused VLC to sometimes render incorrectly when our own window was also fullscreen (same reasoning as the OpenMATB subprocess below). We also pass `--no-one-instance` (so playback always runs in the process we're actually waiting on, rather than being handed off via IPC to an already-running VLC) and `--qt-continue=0` (so a "continue playback where you left off?" dialog can't silently block `--play-and-exit` forever) -- together these were the two causes of playback occasionally not displaying correctly or never returning control to the app.
 
-## Attention task (OpenMATB)
+## Attention task (SART)
 
-The attention/focus task is [OpenMATB](https://github.com/juliencegarra/OpenMATB) -- an existing, validated sustained-attention/workload task battery -- run standalone as its own step, **after** `python -m app.main` (the emotion+stress session) finishes, rather than orchestrated by our own code. It is **not** committed to this repo (it's a separate open-source project, run via its own `main.py`); clone it locally and point `app/config/session_config.yaml`'s `attention_task.openmatb.install_path` at it (default: `vendor/OpenMATB`, gitignored).
+The attention/focus task is the **Sustained Attention to Response Task (SART)**
+(Robertson et al., 1997) -- participants press SPACE for every digit 1-9
+*except* 3, and withhold on 3. It replaces OpenMATB (see "Attention task
+(OpenMATB, retired)" below) after hands-on comparison of several existing
+attention/vigilance tasks -- PVT, SART, gradCPT, the Lateralized Attention
+Task, and a PsychoPy whack-a-mole go/no-go game -- found SART the most
+intuitive to play while still requiring genuine sustained focus (decision made
+2026-08-02; **pending final PI confirmation**).
+
+Not yet wired into `app/main.py`/`app/run_task.py` -- it's currently run as
+the standalone third-party script below, same as OpenMATB was. Integrating it
+as `app/tasks/attention_sart.py` (porting its trial loop to log through
+`ctx.event_logger` instead of its own output file, following the host-clock
+wrapper philosophy described in `attention_openmatb.py`'s docstring) is the
+next step once the PI signs off.
+
+Source: [cstothart/sustained-attention-to-response-task](https://github.com/cstothart/sustained-attention-to-response-task)
+(MIT licensed; Stothart, C. (2015). *Python SART* (Version 2) [software]).
+Unlike OpenMATB, **it needs no separate environment/venv** -- it only depends
+on PsychoPy, already in this project's own `requirements.txt`/`exg_collection`
+env.
+
+```bash
+conda activate exg_collection
+git clone https://github.com/cstothart/sustained-attention-to-response-task vendor/SART
+cd vendor/SART
+```
+
+The script targets old StandalonePsychoPy/Python 2 and calls `time.clock()`,
+which was removed in Python 3.8+ -- patch every occurrence to
+`time.perf_counter()` before running (behaviorally identical, just a renamed
+timer API):
+
+```bash
+# Windows (PowerShell):
+(Get-Content python_sart.py) -replace 'time\.clock\(\)', 'time.perf_counter()' | Set-Content python_sart.py
+# macOS/Linux:
+sed -i 's/time\.clock()/time.perf_counter()/g' python_sart.py
+```
+
+Then run it directly:
+
+```bash
+python python_sart.py
+```
+
+A dialog first asks for participant info (fill in anything). Then: fullscreen
+instructions -> an 18-trial practice block with CORRECT/INCORRECT feedback ->
+the real block (default: 1 block x 5 reps x 45 trials = 225 trials, ~4-5 min,
+no feedback). No escape/quit key is wired up in the script itself -- close the
+window or Ctrl+C the terminal to abort early.
+
+**Logged data** (the fields we need for biosignal alignment and later ML/DL
+feature extraction): a tab-delimited `SART_<participant_number>.txt` written
+next to the script, one row per trial, with columns `block_num`, `trial_num`,
+`number` (digit shown), `omit_num` (target/no-go digit, i.e. 3), `resp_acc`
+(correct/incorrect), `resp_rt` (reaction time, or `NA` if withheld),
+`trial_start_time_s`, `trial_end_time_s`, `mean_trial_time_s`, plus the
+participant-info fields from the intake dialog. That's exactly what's needed
+to compute commission/omission error rates and RT variability as
+attention-lapse markers, with `trial_start_time_s`/`trial_end_time_s` as the
+anchor for aligning each trial to the biosignal timestream.
+
+## Attention task (OpenMATB, retired)
+
+Originally used [OpenMATB](https://github.com/juliencegarra/OpenMATB) -- an existing, validated sustained-attention/workload task battery -- run standalone as its own step, **after** `python -m app.main` (the emotion+stress session) finishes, rather than orchestrated by our own code. Retired in favor of SART (above): OpenMATB's subprocess/separate-venv architecture (needed because it requires a pyglet version incompatible with PsychoPy's) caused severe screen flickering, and its combined gauge-monitoring + resource-management UI was unintuitive for participants. Kept documented here (not deleted) for reference/provenance, same as `attention_nback.py`. It is **not** committed to this repo (it's a separate open-source project, run via its own `main.py`); clone it locally and point `app/config/session_config.yaml`'s `attention_task.openmatb.install_path` at it (default: `vendor/OpenMATB`, gitignored).
 
 `app/tasks/attention_openmatb.py` (launched via `python -m app.run_task --task attention`) is a Python wrapper that generates a scenario + config.ini and drives this as a subprocess from within our own event logging/window flow -- useful for testing that integration path, but not currently called from `app/main.py`. To just run OpenMATB directly instead (no wrapper), see the commands below.
 
