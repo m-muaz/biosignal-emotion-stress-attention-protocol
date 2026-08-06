@@ -1,0 +1,144 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  background: #163247;
+  color: #eaf6fb;
+  font-family: "Segoe UI", Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+.hidden { display: none !important; }
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.hint { margin-top: 28px; opacity: 0.75; font-size: 16px; }
+
+#message-text {
+  font-size: 24px;
+  line-height: 1.5;
+  max-width: 900px;
+  white-space: pre-wrap;
+  text-align: center;
+}
+#message-text .heading { font-size: 32px; font-weight: 700; display: block; margin-bottom: 22px; }
+
+#questionnaire-content {
+  width: 80%;
+  max-width: 900px;
+  /* Multi-row screens (STAI-6/PANAS) can be taller than the viewport --
+     scroll the content itself rather than letting rows run off-screen
+     under the page's overflow:hidden. */
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+#questionnaire-content::-webkit-scrollbar { width: 8px; }
+#questionnaire-content::-webkit-scrollbar-thumb { background: #2d6a8f; border-radius: 4px; }
+#questionnaire-content::-webkit-scrollbar-track { background: transparent; }
+.q-prompt { font-size: 24px; margin-bottom: 30px; text-align: center; }
+.q-sub-prompt { font-size: 16px; opacity: 0.8; margin-bottom: 26px; text-align: center; }
+
+.q-options { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+.q-option-btn {
+  padding: 16px 30px;
+  font-size: 18px;
+  background: #1e4258;
+  color: #eaf6fb;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.q-option-btn.selected { border-color: #4fc3f7; background: #2d6a8f; }
+
+.q-numeric-display {
+  font-size: 40px;
+  font-weight: 700;
+  text-align: center;
+  min-height: 56px;
+  margin-bottom: 24px;
+  border-bottom: 3px solid #2d6a8f;
+  padding-bottom: 8px;
+}
+.q-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  max-width: 320px;
+  margin: 0 auto;
+}
+.q-keypad button {
+  padding: 18px;
+  font-size: 22px;
+  background: #1e4258;
+  color: #eaf6fb;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.q-keypad button:active { background: #4fc3f7; color: #0e2331; }
+
+.q-rating-row { margin-bottom: 22px; }
+.q-rating-scale { display: flex; justify-content: center; gap: 10px; }
+.q-rating-btn {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: #1e4258;
+  color: #eaf6fb;
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.q-rating-btn.selected { border-color: #4fc3f7; background: #2d6a8f; }
+/* Width is set inline per-row (see buildRatingRow in shell.js) to match the
+   actual number of scale buttons -- a fixed max-width here made the
+   endpoint labels line up under a 7-point scale but drift off to the sides
+   for shorter ones (STAI's 4-point, PANAS's 5-point). */
+.q-rating-endpoints { display: flex; justify-content: space-between; font-size: 13px; opacity: 0.7; margin: 6px auto 0; }
+
+.q-group-field { margin-bottom: 26px; padding: 10px; border-radius: 8px; transition: background 0.2s; }
+.q-field-label { font-size: 17px; margin-bottom: 10px; }
+.q-text-input, .q-dropdown {
+  width: 100%;
+  padding: 12px;
+  font-size: 18px;
+  background: #0e2331;
+  color: #eaf6fb;
+  border: 2px solid #2d6a8f;
+  border-radius: 6px;
+}
+.q-dropdown option { background: #163247; }
+.q-group-field.q-field-missing { background: rgba(255, 107, 107, 0.15); }
+.q-group-field.q-field-missing .q-field-label { color: #ff8080; }
+
+.q-continue-hint { margin-top: 20px; text-align: center; opacity: 0.7; }
+.q-continue-hint-warning { opacity: 1; color: #ff8080; font-weight: 600; }
+
+.q-nav { display: flex; justify-content: space-between; align-items: center; width: 80%; max-width: 900px; margin: 26px auto 0; }
+.q-nav-btn {
+  padding: 14px 30px;
+  font-size: 17px;
+  background: #1e4258;
+  color: #eaf6fb;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.q-nav-btn:hover:not(:disabled) { background: #2d6a8f; }
+.q-nav-btn:disabled { opacity: 0.35; cursor: default; }
+.q-prev-btn { visibility: hidden; }
+.q-prev-btn.visible { visibility: visible; }
+
+#break-text { font-size: 26px; margin-bottom: 24px; }
+.progress-track { width: 40%; height: 14px; background: rgba(255,255,255,0.15); border-radius: 7px; overflow: hidden; }
+.progress-fill { height: 100%; width: 100%; background: #4fc3f7; transform-origin: left center; }

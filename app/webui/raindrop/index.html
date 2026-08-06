@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Raindrop Math</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="hud">
+    <div id="score">Score: <span id="score-value">0</span></div>
+    <div id="high-score">High score: <span id="high-score-value">--</span></div>
+    <div id="key-hint">B = skip block &nbsp;|&nbsp; ESC = quit</div>
+  </div>
+
+  <div id="rest-screen" class="screen hidden">
+    <div class="fixation-cross">+</div>
+    <div class="fixation-progress-track"><div class="fixation-progress-fill" id="rest-progress"></div></div>
+  </div>
+
+  <div id="game-screen" class="screen hidden">
+    <div id="drop-field"></div>
+    <div id="answer-bar">
+      <span id="answer-display">&nbsp;</span>
+    </div>
+    <div id="keypad">
+      <button class="key" data-key="7">7</button>
+      <button class="key" data-key="8">8</button>
+      <button class="key" data-key="9">9</button>
+      <button class="key" data-key="4">4</button>
+      <button class="key" data-key="5">5</button>
+      <button class="key" data-key="6">6</button>
+      <button class="key" data-key="1">1</button>
+      <button class="key" data-key="2">2</button>
+      <button class="key" data-key="3">3</button>
+      <button class="key" data-key="-">-</button>
+      <button class="key" data-key="0">0</button>
+      <button class="key wide" data-key="backspace">&#9003;</button>
+    </div>
+  </div>
+
+  <div id="pause-screen" class="screen hidden">
+    <div id="pause-heading">Round complete</div>
+    <div id="pause-score"></div>
+    <div class="hint">Press SPACE when you're ready for the next round</div>
+  </div>
+
+  <div id="end-screen" class="screen hidden">
+    <div id="end-heading">Round complete</div>
+    <div id="end-score"></div>
+    <div id="end-high-score"></div>
+    <div class="hint">Press SPACE to continue</div>
+  </div>
+
+  <script src="../shared/clock_sync.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Emotion Task</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="key-hint">N = skip clip &nbsp;|&nbsp; B = skip block &nbsp;|&nbsp; ESC = quit</div>
+
+  <div id="block-intro-screen" class="screen hidden">
+    <div id="block-intro-heading"></div>
+    <div class="hint">Press SPACE to begin this block.</div>
+  </div>
+
+  <div id="fixation-screen" class="screen hidden">
+    <div id="fixation-progress-label" class="progress-label"></div>
+    <div class="fixation-cross">+</div>
+  </div>
+
+  <div id="video-screen" class="screen hidden">
+    <video id="clip-video" autoplay></video>
+    <div id="placeholder" class="hidden">
+      <div id="placeholder-label"></div>
+    </div>
+  </div>
+
+  <div id="choice-screen" class="screen hidden">
+    <div class="prompt" id="choice-prompt"></div>
+    <div id="choice-options" class="options"></div>
+    <div class="hint">Click an option, or press 1/2/3, then ENTER to confirm.</div>
+  </div>
+
+  <div id="rating-screen" class="screen hidden">
+    <div id="rating-rows"></div>
+    <div class="hint">Click a number for each row, then press ENTER/SPACE to continue.</div>
+  </div>
+
+  <div id="rest-screen" class="screen hidden">
+    <div class="rest-message">Short rest.</div>
+    <div class="progress-track"><div class="progress-fill" id="rest-progress"></div></div>
+  </div>
+
+  <script src="../shared/clock_sync.js"></script>
+  <script src="player.js"></script>
+</body>
+</html>

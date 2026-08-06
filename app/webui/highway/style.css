@@ -1,0 +1,148 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #163247;
+  color: #eaf6fb;
+  font-family: "Segoe UI", Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+.hidden { display: none !important; }
+
+#hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 24px;
+  font-size: 20px;
+  font-weight: 600;
+  z-index: 10;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+#key-hint {
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.75;
+  align-self: center;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Baseline (rest-screen): a fixation cross, same convention as the emotion
+   task's own fixation screen (app/webui/video_player/style.css), plus a
+   deliberately subtle countdown bar underneath -- small, low-opacity, muted
+   color, well below the cross -- so gaze stays on the cross but the
+   participant still has some peripheral sense of when the round starts. */
+.fixation-cross { font-size: 83px; }   /* 30% bigger than the base 64px, per feedback 2026-08-04 */
+
+.fixation-progress-track {
+  margin-top: 40px;
+  width: 18%;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.fixation-progress-fill {
+  height: 100%;
+  width: 100%;
+  background: rgba(234,246,251,0.3);
+  transform-origin: left center;
+}
+
+#game-screen { justify-content: flex-start; }
+
+#road {
+  position: relative;
+  width: 55%;
+  height: 100%;
+  margin: 0 auto;
+  background: #1e2b33;
+  border-left: 6px dashed #4fc3f7;
+  border-right: 6px dashed #4fc3f7;
+  overflow: hidden;
+}
+
+/* Lane dividers are built by game.js (count depends on bootstrap.lanes) --
+   this class just supplies the shared look. */
+.lane-divider {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 0;
+  border-left: 4px dashed rgba(234,246,251,0.35);
+}
+
+#obstacle-field { position: absolute; inset: 0; }
+
+.obstacle {
+  position: absolute;
+  top: -10%;
+  font-size: 54px;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+
+.obstacle.collided { animation: crash 0.3s ease-out forwards; }
+.obstacle.avoided { animation: fade-out 0.25s ease-out forwards; }
+
+@keyframes crash {
+  to { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+}
+
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+#player-car {
+  position: absolute;
+  bottom: 6%;
+  font-size: 60px;
+  transform: translate(-50%, 0);
+  transition: left 0.12s ease-out;
+}
+
+#player-car.flash { animation: flash-red 0.3s ease-out; }
+
+@keyframes flash-red {
+  0% { filter: drop-shadow(0 0 0 transparent); }
+  40% { filter: drop-shadow(0 0 18px #ff6b6b); }
+  100% { filter: drop-shadow(0 0 0 transparent); }
+}
+
+#end-heading { font-size: 34px; font-weight: 700; margin-bottom: 16px; }
+#end-score { font-size: 22px; margin-bottom: 8px; }
+.hint { margin-top: 24px; opacity: 0.7; }
+
+/* Self-report rating rows -- copied verbatim from
+   app/webui/video_player/style.css so app/webui/shared/rating_widget.js
+   renders identically in both tasks. */
+#rating-rows { width: 70%; }
+.rating-row { margin-bottom: 34px; }
+.rating-prompt { font-size: 20px; margin-bottom: 10px; text-align: center; }
+.rating-endpoints { display: flex; justify-content: space-between; font-size: 13px; opacity: 0.7; margin-top: 6px; }
+.rating-scale { display: flex; justify-content: center; gap: 10px; }
+.rating-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #1e4258;
+  color: #eaf6fb;
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-size: 16px;
+}
+.rating-btn.selected { border-color: #4fc3f7; background: #2d6a8f; }

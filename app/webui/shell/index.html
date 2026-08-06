@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Data Collection Session</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="message-screen" class="screen hidden">
+    <div id="message-text"></div>
+    <div class="hint" id="message-hint">Press SPACE to continue.</div>
+  </div>
+
+  <div id="questionnaire-screen" class="screen hidden">
+    <div id="questionnaire-content"></div>
+    <div id="q-nav" class="q-nav">
+      <button id="q-prev-btn" class="q-nav-btn q-prev-btn">&larr; Previous</button>
+      <button id="q-next-btn" class="q-nav-btn q-next-btn" disabled>Next &rarr;</button>
+    </div>
+  </div>
+
+  <div id="break-screen" class="screen hidden">
+    <div id="break-text">Break -- take a moment to relax.</div>
+    <div class="progress-track"><div class="progress-fill" id="break-progress"></div></div>
+  </div>
+
+  <script src="../shared/clock_sync.js"></script>
+  <script src="shell.js"></script>
+</body>
+</html>

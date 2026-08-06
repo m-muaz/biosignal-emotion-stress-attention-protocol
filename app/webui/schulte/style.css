@@ -1,0 +1,126 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #163247;
+  color: #eaf6fb;
+  font-family: "Segoe UI", Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+.hidden { display: none !important; }
+
+#hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 24px;
+  font-size: 18px;
+  font-weight: 600;
+  z-index: 10;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+#key-hint {
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.75;
+  align-self: center;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Instructions screen -- shown before every trial (and before the demo)
+   so the mechanic is explained in text even when this subprocess is
+   launched standalone (python -m app.run_task), not just through the
+   session shell's own message screens. */
+#instructions-text {
+  font-size: 22px;
+  line-height: 1.5;
+  white-space: pre-line;
+  max-width: 760px;
+  text-align: center;
+  padding: 0 40px;
+}
+
+/* Baseline (rest-screen): same fixation-cross + subtle countdown-bar
+   convention as every other task (app/webui/raindrop/style.css,
+   app/webui/highway/style.css). */
+.fixation-cross { font-size: 83px; }
+
+.fixation-progress-track {
+  margin-top: 40px;
+  width: 18%;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.fixation-progress-fill {
+  height: 100%;
+  width: 100%;
+  background: rgba(234,246,251,0.3);
+  transform-origin: left center;
+}
+
+#game-screen { padding-top: 70px; }
+
+#next-hint {
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+#next-number { color: #f5a623; }
+
+#grid {
+  display: grid;
+  gap: 10px;
+  width: min(78vh, 78vw);
+  height: min(78vh, 78vw);
+}
+
+.schulte-cell {
+  border: 3px solid #eaf6fb;
+  background: #1e4258;
+  color: #eaf6fb;
+  font-size: 28px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+/* Number stays visible after being found (per classic Schulte protocol --
+   only dimmed, never removed/hidden) so it's clear which numbers are
+   already done without changing what's on screen. */
+.schulte-cell.found {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.schulte-cell.correct-flash {
+  background: #2ecc71;
+  border-color: #eafff0;
+}
+
+.schulte-cell.wrong-flash {
+  background: #e74c3c;
+  border-color: #ffe8e8;
+}
+
+#end-heading { font-size: 34px; font-weight: 700; margin-bottom: 16px; }
+#end-stats { font-size: 22px; margin-bottom: 8px; }
+.hint { margin-top: 24px; opacity: 0.7; }

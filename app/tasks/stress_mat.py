@@ -40,11 +40,14 @@ from app.ui.common_widgets import (
 def generate_question(tier_cfg: dict, rng) -> tuple[str, int]:
     """Builds a left-to-right arithmetic expression with an exact integer answer.
 
-    Division is kept exact by padding the running value up to the nearest
-    multiple of the chosen divisor with an extra '+' step when needed --
-    every token appended always matches the running `value`, so the
-    displayed expression and the logged correct answer can never drift
-    apart.
+    Division must land on a whole number, so when the running value isn't
+    already a multiple of the chosen divisor, it needs padding up first.
+    That padding is folded invisibly into the immediately preceding term
+    whenever that's algebraically safe (the preceding term was itself added
+    or subtracted, or it's the very first number) -- e.g. a "35 / 2" needing
+    +1 becomes "36 / 2" rather than the more confusing "35 + 1 / 2". It's
+    only shown as an explicit extra step when the preceding term came from a
+    "*" or "/", where folding it in would silently change the answer.
     """
     ops = tier_cfg["operators"]
     n = tier_cfg["num_operands"]
@@ -53,6 +56,29 @@ def generate_question(tier_cfg: dict, rng) -> tuple[str, int]:
     first = rng.randint(1, max_val)
     tokens = [str(first)]
     value = first
+    last_op = None  # operator behind the current last token; None = it's still just `first`
+
+    def fold_pad(pad):
+        """Try to absorb `pad` into the preceding term in place (tokens/value
+        already updated on success). Returns False if that isn't safe here,
+        leaving it to the caller to append an explicit "+ pad" step instead."""
+        nonlocal value
+        if last_op not in (None, "+", "-"):
+            return False
+        prior = int(tokens[-1])
+        if last_op == "-":
+            new_operand = prior - pad
+            if new_operand > 0:
+                tokens[-1] = str(new_operand)
+            elif new_operand < 0:
+                tokens[-2] = "+"
+                tokens[-1] = str(-new_operand)
+            else:
+                del tokens[-2:]
+        else:  # None (very first term) or "+"
+            tokens[-1] = str(prior + pad)
+        value += pad
+        return True
 
     for _ in range(n - 1):
         op = rng.choice(ops)
@@ -64,23 +90,28 @@ def generate_question(tier_cfg: dict, rng) -> tuple[str, int]:
                 remainder = value % divisor
                 if remainder != 0:
                     pad = divisor - remainder
-                    tokens += ["+", str(pad)]
-                    value += pad
+                    if not fold_pad(pad):
+                        tokens += ["+", str(pad)]
+                        value += pad
                 operand, new_value = divisor, value // divisor
             tokens += ["/", str(operand)]
             value = new_value
+            last_op = "/"
         elif op == "*":
             operand = rng.randint(2, 9)
             tokens += ["*", str(operand)]
             value *= operand
+            last_op = "*"
         elif op == "+":
             operand = rng.randint(1, max_val)
             tokens += ["+", str(operand)]
             value += operand
+            last_op = "+"
         else:  # "-"
             operand = rng.randint(1, max_val)
             tokens += ["-", str(operand)]
             value -= operand
+            last_op = "-"
 
     return " ".join(tokens), value
 

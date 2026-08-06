@@ -7,6 +7,12 @@ psychopy
 bleak
 pyyaml
 
+# pywebview: renders the raindrop stress game and the emotion video player
+# (see app/webui/) -- runs as its own subprocess (app/webui/raindrop_app.py,
+# app/webui/video_player_app.py), never imported into this same process as
+# psychopy, so it doesn't need to coexist with pyglet's window/event loop.
+pywebview
+
 # NOTE: OpenMATB (attention task engine, see README.md "Attention task
 # (OpenMATB)") deliberately does NOT get its deps installed here. PsychoPy
 # pins pyglet==1.4.11 on Windows for its own window backend, while OpenMATB

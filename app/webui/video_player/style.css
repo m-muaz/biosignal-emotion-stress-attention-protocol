@@ -1,0 +1,80 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  background: #000;
+  color: #eaf6fb;
+  font-family: "Segoe UI", Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+.hidden { display: none !important; }
+
+#key-hint {
+  position: fixed;
+  bottom: 10px; left: 0; right: 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.6;
+  z-index: 10;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.hint { margin-top: 20px; opacity: 0.7; font-size: 16px; }
+.progress-label { position: absolute; top: 20px; left: 30px; opacity: 0.6; font-size: 14px; }
+
+#block-intro-heading { font-size: 32px; font-weight: 700; }
+
+.fixation-cross { font-size: 64px; }
+
+#video-screen { background: #000; }
+#clip-video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+#placeholder {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; font-size: 22px; padding: 40px;
+}
+
+.prompt { font-size: 26px; max-width: 70%; text-align: center; margin-bottom: 32px; }
+
+.options { display: flex; gap: 24px; }
+.option-btn {
+  padding: 18px 36px;
+  font-size: 20px;
+  background: #1e4258;
+  color: #eaf6fb;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.option-btn.selected { border-color: #4fc3f7; background: #2d6a8f; }
+
+#rating-rows { width: 70%; }
+.rating-row { margin-bottom: 34px; }
+.rating-prompt { font-size: 20px; margin-bottom: 10px; text-align: center; }
+.rating-endpoints { display: flex; justify-content: space-between; font-size: 13px; opacity: 0.7; margin-top: 6px; }
+.rating-scale { display: flex; justify-content: center; gap: 10px; }
+.rating-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #1e4258;
+  color: #eaf6fb;
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-size: 16px;
+}
+.rating-btn.selected { border-color: #4fc3f7; background: #2d6a8f; }
+
+.rest-message { font-size: 24px; margin-bottom: 20px; }
+.progress-track { width: 40%; height: 14px; background: rgba(255,255,255,0.15); border-radius: 7px; overflow: hidden; }
+.progress-fill { height: 100%; width: 100%; background: #4fc3f7; transform-origin: left center; }

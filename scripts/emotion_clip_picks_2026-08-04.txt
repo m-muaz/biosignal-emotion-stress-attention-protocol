@@ -1,0 +1,126 @@
+# Hand-pick exactly 10 clips per category (joy / sadness / indifference),
+# only these 3 categories are used going forward
+# (satisfaction/fascination/anxiety/fear/compassion/etc. are dropped).
+#
+# HOW TO USE:
+#   - Every candidate clip in each category is listed below as:
+#         VID_code    duration_in_seconds    resolution
+#   - Keep the 10 lines you want per category AS-IS (no leading #).
+#   - Delete the lines you don't want, or just leave a "#" in front of them
+#     (either works -- commented-out lines are ignored).
+#   - Don't add/remove the "[category]" header lines.
+#   - Durations and resolutions are ffprobe-measured directly from the file
+#     on disk (not the dataset's own video_data.csv column, which is
+#     occasionally off -- see assets/clips/_upgraded/upgrade_report.json).
+#   - Lines flagged "<-- below 720p" are under the resolution floor from the
+#     earlier upgrade pass. 6 of these (VID_513/819 joy, VID_603/608/805
+#     sadness, VID_1006 indifference) were already re-download attempts in
+#     assets/clips/_upgraded/, but every one came back with a duration that
+#     doesn't match the original (dataset authors shipped a different chunk
+#     of the source video) and isn't safe to swap in yet. VID_610 (sadness,
+#     540p) is a NEW below-720p clip this pass caught that the earlier
+#     upgrade script's categorization missed. If picking any flagged clip
+#     matters for image quality, flag it and we can attempt a re-download
+#     for that one specifically, but note the trim-mismatch risk above.
+#   - VID_626 (sadness) and VID_906 (joy) previously failed a *re-download*
+#     attempt (assets/clips/failed_downloads.csv, gateway timeout) but the
+#     original file already on disk played back fine when probed -- keep
+#     an eye on picture quality if you pick either, otherwise fine to use.
+#   - Once you're done, send this file back and I'll wire it into
+#     emotion_manifest.json / emotion_fixed_clips.json / session_config.yaml.
+#
+# Sorted longest -> shortest within each category, to make it easier to
+# balance total watch time while picking.
+
+[joy]
+#VID_310	70.92	1280x720
+#VID_514	66.74	1280x720
+#VID_503	66.14	1280x720
+#VID_521	63.46	1280x720
+VID_524	62.98	1280x720
+#VID_507	62.51	1280x720
+VID_712	61.98	1280x720
+VID_515	61.54	1280x720
+# VID_716	58.3	1280x720
+# VID_506	57.74	1280x720
+VID_906	57.64	1280x720
+VID_519	55.72	1280x720
+# VID_513	55.58	1280x584	<-- below 720p
+# VID_511	54.82	1270x720
+#VID_505	52.7	1280x720
+#VID_304	48.84	1280x720
+#VID_504	46.12	1280x720
+VID_512	45.46	1280x720
+VID_517	44.9	1280x720
+#VID_508	44.34	972x720
+VID_819	41.16	1270x712	<-- below 720p
+VID_301	40.4	1280x720
+VID_502	37.02	1280x720
+#VID_522	36.7	1280x720
+#VID_516	35.9	1280x720
+VID_303	35.02	1280x720
+#VID_501	28.68	1280x720
+VID_302	28.52	1280x720
+#VID_523	24.52	1280x720
+#VID_509	20.76	1280x720
+VID_721	20.74	1280x720
+#VID_723	16.28	1280x720
+#VID_518	13.1	1280x720
+
+[sadness]
+#VID_610	69.74	1256x540	<-- below 720p
+VID_611	69.6	1280x720
+#VID_625	66.8	1280x720
+VID_808	65.88	1280x720
+VID_624	60.78	1280x720
+VID_821	60.02	1280x720
+VID_620	59.38	1280x720
+#VID_805	56.5	1280x566	<-- below 720p
+#VID_627	56.4	1280x720
+#VID_608	55.42	1160x686	<-- below 720p
+#VID_605	54.06	1280x720
+VID_623	53.04	1280x720
+#VID_607	52.54	1280x720
+#VID_626	52.1	1280x720
+#VID_622	47.72	1280x720
+#VID_818	45.98	1280x720
+VID_609	45.26	1280x720
+#VID_612	42.94	1280x720
+#VID_614	42.36	1196x720
+VID_603	41.78	1280x676	<-- below 720p
+#VID_602	29.34	1280x720
+VID_621	27.46	1280x720
+VID_308	23.88	1280x720
+#VID_619	23.88	1280x720
+VID_606	22.06	1280x720
+#VID_601	19.34	1280x720
+#VID_813	12.94	1280x720
+
+[indifference]
+# VID_1011	67.38	1280x720
+VID_1018	58.02	1280x720
+# ? VID_1022	55.94	1280x720
+# ? VID_1008	54.76	1280x720
+# VID_1016	47.48	1280x720 (too loud)
+VID_908	45.06	1070x720
+VID_1012	44.0	1280x720
+VID_1015	41.52	1280x720
+# VID_1006	40.1	872x620	<-- below 720p
+VID_1019	37.84	1280x720
+# VID_1014	37.58	1280x720
+# VID_1013	35.7	1280x720
+VID_1004	35.54	1280x720
+# VID_1021	33.1	1280x720
+VID_1007	30.62	1280x720
+VID_1005	30.56	1280x720
+VID_1010	30.5	1280x720
+# VID_405	23.7	1280x720
+# VID_1009	21.86	1280x720
+VID_1001	20.58	1280x720
+VID_1002	20.5	1280x720
+# VID_1003	20.5	1280x720
+VID_901	20.22	1280x720
+# VID_1020	20.08	1280x720
+VID_1023	15.56	1280x720
+# VID_510	13.46	1280x720
+VID_1017	12.08	1280x720

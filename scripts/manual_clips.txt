@@ -3,15 +3,38 @@
 # Lines starting with # (or blank lines) are ignored.
 # Fill this in, then run: python scripts/add_manual_clips.py scripts/manual_clips.txt
 #
-# Example (VID_906 is on disk in assets/clips/joy/ but was excluded from the
-# manifest because video_data.csv marks it language_free=FALSE):
-# VID_906,positive
+# Finalized selection from scripts/emotion_clip_picks_2026-08-04.txt (hand-picked
+# by PI, joy/sadness/indifference only -- top 10 per category, longest->shortest).
+# joy -> positive
+VID_524, positive
+VID_712, positive
+VID_515, positive
 VID_906, positive
-VID_604, positive
-VID_408, positive
-VID_817, negative
-VID_119, negative
+VID_519, positive
+VID_512, positive
+VID_517, positive
+VID_819, positive
+VID_301, positive
+VID_502, positive
+# sadness -> negative
+VID_611, negative
+VID_808, negative
 VID_624, negative
+VID_821, negative
+VID_620, negative
+VID_623, negative
+VID_609, negative
+VID_603, negative
+VID_621, negative
+VID_308, negative
+# indifference -> neutral
+VID_1018, neutral
+VID_908, neutral
+VID_1012, neutral
+VID_1015, neutral
 VID_1019, neutral
-VID_901, neutral
-VID_1002, neutral
+VID_1004, neutral
+VID_1007, neutral
+VID_1005, neutral
+VID_1010, neutral
+VID_1001, neutral

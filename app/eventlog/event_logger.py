@@ -29,6 +29,18 @@ class EventLogger:
     ) -> None:
         row = {
             "timestamp_host_utc": time.time(),
+            # Monotonic host-side clock (never jumps backward/forward on an
+            # NTP correction, unlike timestamp_host_utc) -- added alongside
+            # it, not instead of it, so offline processing can use THIS for
+            # duration/ordering math and timestamp_host_utc only for mapping
+            # onto wall-clock/external-device time. See bridge.py's
+            # sync_checkpoint() for how this gets tied to the JS-side
+            # performance.now() clock every task's webui frontend uses for
+            # its own reaction-time math (highway/raindrop/schulte/stroop/
+            # video_player/shell all go through this same log() call, so
+            # this one field fixes the clock-correspondence gap for all of
+            # them at once, not just one task).
+            "timestamp_monotonic": time.perf_counter(),
             "session_id": self.session_id,
             "participant_id": self.participant_id,
             "task": task,

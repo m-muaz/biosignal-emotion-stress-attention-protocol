@@ -159,32 +159,55 @@ def select_task_clips(
     `selected_by_group` is always {valence_group: [clips shown this session]}.
     `clip_selection_mode` (cfg) controls how those clips are chosen:
     - "fixed" (default): the same predefined clip_ids (`fixed_clips`, from
-      scripts/select_fixed_emotion_clips.py's output) are used for every
-      participant -- only presentation order is randomized. Falls back to
-      random sampling for any valence_group `fixed_clips` doesn't cover.
+      scripts/select_fixed_emotion_clips.py's output, or hand-picked via
+      scripts/add_manual_clips.py) are used for every participant -- only
+      presentation order is randomized. Falls back to random sampling for
+      any valence_group `fixed_clips` doesn't cover.
     - "random": the old behavior -- clips_per_group clips are randomly
       sampled per participant from the full manifest pool of that group.
+
+    `clips_per_group` (cfg) is how many clips to select for each valence
+    group. Either a single int applied to every group (legacy), or a dict
+    ({valence_group: count}, e.g. {"positive": 10, "negative": 10,
+    "neutral": 10}) so each group's count can be set independently --
+    e.g. to draw down a group that participants report as too intense/long
+    without touching the others.
 
     `block_structure` (cfg) controls how the selected clips are laid out into
     the blocks returned as `blocks` (a list of blocks, each a list of clips in
     presentation order):
-    - "interleaved" (default): all selected clips across every valence group
-      are pooled and shuffled together, then split evenly across
-      len(valence_groups) blocks -- so a block can mix positive/negative/
-      neutral clips, per PI request.
+    - "interleaved" (default): each valence group's selected clips are
+      distributed round-robin across `num_blocks` (cfg) blocks (each group's
+      clips already shuffled above, so which specific clips land in which
+      block is still randomized), then every block is shuffled internally --
+      so a block mixes positive/negative/neutral clips in random order, per
+      PI request, while keeping roughly equal per-valence counts in every
+      block (not just an equal-size pool split, which could by chance skew
+      a block toward one valence). The round-robin start position rotates
+      one valence group at a time so the "extra" clip from an uneven
+      division (e.g. 10 clips / 3 blocks = 4/3/3) doesn't stack onto the
+      same block every group -- with equal clips_per_group across groups
+      this makes block sizes come out equal too. `num_blocks` defaults to
+      len(valence_groups) if unset, but is independent of it -- e.g. 30
+      selected clips (10/group) can be laid out as 3 blocks of 10, 5 of 6,
+      6 of 5, etc.
     - "grouped_by_valence": the original FACED-style layout -- one block per
       valence group, each block's clips all sharing that group's valence
-      (block order across groups is still shuffled).
+      (block order across groups is still shuffled). `num_blocks` is not
+      used in this mode -- block count is always len(valence_groups).
     """
     groups: dict[str, list[dict]] = {}
     for clip in clips:
         groups.setdefault(clip["valence_group"], []).append(clip)
 
     selection_mode = cfg.get("clip_selection_mode", "random")
-    n_per_group = cfg["clips_per_group"]
+    n_per_group_cfg = cfg["clips_per_group"]
 
     selected_by_group: dict[str, list[dict]] = {}
     for valence_group in cfg["valence_groups"]:
+        n_per_group = (
+            n_per_group_cfg[valence_group] if isinstance(n_per_group_cfg, dict) else n_per_group_cfg
+        )
         group_clips = list(groups.get(valence_group, []))
         fixed_ids = (fixed_clips or {}).get(valence_group)
         if selection_mode == "fixed" and fixed_ids:
@@ -198,9 +221,18 @@ def select_task_clips(
 
     block_structure = cfg.get("block_structure", "grouped_by_valence")
     if block_structure == "interleaved":
-        pooled = [clip for group_clips in selected_by_group.values() for clip in group_clips]
-        rng.shuffle(pooled)
-        blocks = _chunk_evenly(pooled, len(cfg["valence_groups"]))
+        num_blocks = cfg.get("num_blocks", len(cfg["valence_groups"]))
+        blocks: list[list[dict]] = [[] for _ in range(num_blocks)]
+        for group_index, group_clips in enumerate(selected_by_group.values()):
+            # Round-robin each group's (already-shuffled) clips across blocks,
+            # rotating the start offset per group so a group's "extra" clip
+            # from an uneven division doesn't always land in block 0 -- see
+            # docstring above for why this balances both per-valence counts
+            # and overall block size.
+            for i, clip in enumerate(group_clips):
+                blocks[(i + group_index) % num_blocks].append(clip)
+        for block in blocks:
+            rng.shuffle(block)  # mix valence groups' clips within the block, not group-then-group
     else:
         block_order = list(cfg["valence_groups"])
         rng.shuffle(block_order)
@@ -442,7 +474,7 @@ def run_emotion_task(win, ctx, blocks: list[list[dict]], player_path: str):
     show_message(
         win,
         "TASK 2: EMOTION\n\n"
-        "You will watch a series of short video clips, grouped into three blocks.\n\n"
+        f"You will watch a series of short video clips, grouped into {len(blocks)} blocks.\n\n"
         "Each clip starts with a brief '+' fixation cross, then plays with sound in its own "
         "player window. Afterwards you'll answer a couple of quick questions about how it made "
         "you feel -- whether it was positive, negative, or neutral overall, and how pleasant, "

@@ -177,8 +177,18 @@ def fixation_cross(win, duration, allow_skip: bool = False, progress_label: str 
         if label:
             label.draw()
         win.flip()
-        check_quit()
-        core.wait(duration)
+        # Chunked instead of one long core.wait(duration) -- a single
+        # check_quit() before a multi-second (or, for sart_task's 90s
+        # pre-task baseline, multi-MINUTE) blocking wait meant Escape was
+        # invisible to the app for the entire wait (reported: pressing Esc
+        # during SART did nothing). No skip-hint/SkipBlock/SkipTrial here --
+        # those are allow_skip's job; this only restores Escape-to-quit.
+        remaining = duration
+        while remaining > 0:
+            check_quit()
+            chunk = min(0.2, remaining)
+            core.wait(chunk)
+            remaining -= chunk
         return
 
     # Flush any keys queued from the previous screen (e.g. digits pressed

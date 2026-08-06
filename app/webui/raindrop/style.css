@@ -1,0 +1,165 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #163247;
+  color: #eaf6fb;
+  font-family: "Segoe UI", Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+.hidden { display: none !important; }
+
+#hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 24px;
+  font-size: 20px;
+  font-weight: 600;
+  z-index: 10;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+#key-hint {
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.75;
+  align-self: center;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Baseline (rest-screen): a fixation cross, same convention as the emotion
+   task's own fixation screen (app/webui/video_player/style.css), plus a
+   deliberately subtle countdown bar underneath -- small, low-opacity, muted
+   color, well below the cross -- so gaze stays on the cross but the
+   participant still has some peripheral sense of when the round starts. */
+.fixation-cross { font-size: 83px; }   /* 30% bigger than the base 64px, per feedback 2026-08-04 */
+
+.fixation-progress-track {
+  margin-top: 40px;
+  width: 18%;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.fixation-progress-fill {
+  height: 100%;
+  width: 100%;
+  background: rgba(234,246,251,0.3);
+  transform-origin: left center;
+}
+
+#game-screen { justify-content: flex-end; }
+
+#drop-field {
+  position: absolute;
+  top: 70px; left: 0; right: 0; bottom: 230px;
+  overflow: hidden;
+}
+
+.drop {
+  position: absolute;
+  width: 96px;
+  height: 108px;
+  background: #1e4258;
+  border: 3px solid #eaf6fb;
+  color: #eaf6fb;
+  border-radius: 50% 50% 50% 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.1;
+  padding-bottom: 8px;
+  /* the 50%-50%-50%-0 border-radius plus a 45deg rotation gives the classic
+     teardrop silhouette; the text itself is counter-rotated upright below */
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.drop .drop-label {
+  transform: rotate(45deg);
+}
+
+.drop.highlighted {
+  background: #f5a623;
+  border-color: #fff3d6;
+  box-shadow: 0 0 24px 8px rgba(245, 166, 35, 0.75);
+}
+
+.drop.correct {
+  animation: pop 0.25s ease-out forwards;
+}
+
+.drop.missed {
+  animation: sink 0.3s ease-in forwards;
+}
+
+@keyframes pop {
+  to { transform: translate(-50%, -50%) rotate(-45deg) scale(1.6); opacity: 0; }
+}
+
+@keyframes sink {
+  to { opacity: 0; filter: brightness(0.4); }
+}
+
+#answer-bar {
+  height: 60px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.06);
+  letter-spacing: 2px;
+}
+
+#answer-bar.mismatch { color: #ff6b6b; }
+
+#keypad {
+  width: 100%;
+  height: 170px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 2px;
+  background: #0e2331;
+}
+
+.key {
+  border: none;
+  background: #1e4258;
+  color: #eaf6fb;
+  font-size: 26px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.key:active, .key.pressed {
+  background: #4fc3f7;
+  color: #0e2331;
+}
+
+.key.wide { grid-column: span 2; }
+
+#end-heading, #pause-heading { font-size: 34px; font-weight: 700; margin-bottom: 16px; }
+#end-score, #end-high-score, #pause-score { font-size: 22px; margin-bottom: 8px; }
+.hint { margin-top: 24px; opacity: 0.7; }
