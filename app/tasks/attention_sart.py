@@ -34,6 +34,12 @@ trials) is unchanged from the original. What changed, and why:
     sart_task.baseline_duration_sec) -- not in the original at all -- same
     distributed-baseline treatment as every other task (see
     session_config.yaml's sart_task comment, [[project_session_timing_budget_2026-08-05]]).
+    Per PI request 2026-08-12, this baseline now also shows a low-key mm:ss
+    countdown (fixation_cross's show_timer, common_widgets.py) so the
+    participant has feedback that the wait is progressing -- mirrors the
+    web-based emotion/stress players' baseline countdown (player.js's
+    runFixation/formatCountdown), which this task's psychopy window doesn't
+    otherwise share any UI code with.
   - Simplified the original's trial-sequence construction: its non-fixed
     path effectively only used reps + PsychoPy's own TrialHandler(...,
     method='random') to reshuffle the 45-trial (9 numbers x N font sizes)
@@ -266,7 +272,7 @@ def run_sart_task(win, ctx) -> None:
     ctx.event_logger.log(
         "baseline_start", task="sart", position="pre_task", duration_sec=cfg["baseline_duration_sec"],
     )
-    fixation_cross(win, ctx.scaled(cfg["baseline_duration_sec"]))
+    fixation_cross(win, ctx.scaled(cfg["baseline_duration_sec"]), progress_label="Baseline recording", show_timer=True)
     ctx.event_logger.log("baseline_end", task="sart", position="pre_task")
 
     ctx.event_logger.log("task_start", task="sart", omit_numbers=omit_nums, reps=cfg["reps"], fixed_order=fixed_order)

@@ -21,10 +21,16 @@ reasoning stress_mat.py's per-question time limit never was: shortening the
 pressure for a demo run would defeat the point of a demo run that's supposed
 to let a human operator actually feel the task.
 
-Per PI request 2026-08-04, all tiers now use the SAME arithmetic complexity
-(session_config.yaml's stress_task.tiers: all four operators, 2 single-digit
-operands) -- difficulty comes ENTIRELY from spawn_interval_sec/
-fall_duration_sec, same design philosophy as attention_highway_task's tiers.
+Per PI request 2026-08-04, all tiers use the SAME arithmetic complexity
+(session_config.yaml's stress_task.tiers: all four operators). Per PI request
+2026-08-06, the second (and any later) operand is always single-digit (1-9);
+the FIRST operand used to always be two-digit (10-99) too, but per PI request
+2026-08-10 that's now randomized per question -- two-digit
+two_digit_first_operand_fraction of the time, single-digit the rest -- via a
+per-tier session_config.yaml knob (same value on every tier today). See
+app.tasks.stress_mat.generate_question. Difficulty still comes ENTIRELY from
+spawn_interval_sec/fall_duration_sec, same design philosophy as
+attention_highway_task's tiers.
 stress_task.baseline_mode controls whether the baseline fixation repeats
 before every tier ("per_trial", default) or only once at the very start
 ("once", for an unbroken stress ramp) -- see app/webui/raindrop/game.js.

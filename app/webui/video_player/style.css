@@ -35,6 +35,17 @@ html, body {
 #block-intro-heading { font-size: 32px; font-weight: 700; }
 
 .fixation-cross { font-size: 64px; }
+/* Deliberately subtle -- small, low-opacity, monospaced digits so it reads as
+   a passive progress indicator (like #key-hint) rather than a demanding
+   countdown that could itself become a stressor during a physiological
+   baseline recording. */
+.fixation-timer {
+  margin-top: 24px;
+  font-size: 18px;
+  opacity: 0.45;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
 
 #video-screen { background: #000; }
 #clip-video { width: 100%; height: 100%; object-fit: contain; background: #000; }

@@ -3,6 +3,17 @@
 // payload by app/tasks/stress_raindrop.py) -- this file only renders,
 // animates, collects input, and logs events back through the pywebview
 // bridge (see app/webui/bridge.py).
+//
+// Commit-based input (per PI request 2026-08-10): typing builds up `buffer`
+// (handleDigit) but never resolves anything on its own -- Enter/the
+// on-screen Enter key (submitAnswer) is the only thing that checks it
+// against the live drops and clears it, matching how every reference
+// "Raindrops" clone works (type freely, Backspace to fix a typo, Enter to
+// submit -- see e.g. github.com/nicksebasco/Raindrops's rcInter.js) rather
+// than grading every keystroke live. Deliberately keeps Lumosity's
+// commercial version's "wrong submission gets a visual cue" but drops its
+// input-freeze-on-repeated-wrong-answers penalty -- the goal is to keep the
+// participant attempting questions, not lock them out.
 (() => {
   let bootstrap = null;
   let score = 0;
@@ -11,6 +22,10 @@
   let dropIdCounter = 0;
   let quitting = false;
   let blockStats = { correct: 0, total: 0 };
+  // Set at the top of runArithmeticBlock, read by submitAnswer() to label a
+  // wrong-submission log row with the block it happened in.
+  let currentBlockIndex = null;
+  let currentTierId = null;
 
   const el = (id) => document.getElementById(id);
 
@@ -46,7 +61,10 @@
 
     document.addEventListener("keydown", onKeyDown);
     document.querySelectorAll(".key").forEach((btn) => {
-      btn.addEventListener("click", () => handleDigit(btn.dataset.key));
+      btn.addEventListener("click", () => {
+        if (btn.dataset.key === "enter") submitAnswer();
+        else handleDigit(btn.dataset.key);
+      });
     });
 
     // Several round trips at session start AND end (not just one) -- see
@@ -97,7 +115,9 @@
 
 
   function renderHighScore(hs) {
-    el("high-score-value").textContent = hs ? `${hs.score} (${hs.participant_id})` : "--";
+    // Score only, no participant_id -- per PI request 2026-08-10, the
+    // leaderboard-style display shouldn't name whoever set it.
+    el("high-score-value").textContent = hs ? `${hs.score}` : "--";
   }
 
   function showScreen(name) {
@@ -175,6 +195,8 @@
     liveDrops.clear();
     buffer = "";
     renderBuffer();
+    currentBlockIndex = blockIndex;
+    currentTierId = tierId;
 
     logEvent("block_start", { block_index: blockIndex, condition_label: `tier_${tierId}`, tier: tierId });
     blockStats = { correct: 0, total: 0 };
@@ -226,7 +248,6 @@
     const wrap = document.createElement("div");
     wrap.className = "drop";
     wrap.style.left = (10 + Math.random() * 80) + "%";
-    wrap.style.top = "-10%";
     const label = document.createElement("div");
     label.className = "drop-label";
     label.textContent = question.expr;
@@ -255,11 +276,52 @@
       }, fallMs * 0.55);
     }
 
+    // Per PI request 2026-08-10 ("numbers become blurry" at fast tiers):
+    // vertical motion is driven by `transform` (translateY, in px), NOT by
+    // animating `top` -- `top` is a layout property, so mutating it every
+    // rAF frame forces a full layout recalc + repaint (re-rasterizing the
+    // rotated expression text at a new sub-pixel offset) on every single
+    // frame. At fast tiers with several drops overlapping, that's enough
+    // per-frame work to drop frames -- and the resulting bigger, uneven
+    // position jumps read as blur even before any actual GPU/font blur
+    // does. `transform` is compositor-only: the browser can rasterize the
+    // rotated text once and just re-translate that cached layer, which is
+    // both cheaper and doesn't touch the text's rendering after the first
+    // frame. `top: 0` (fixed, never touched again) is kept purely so this
+    // element still participates in normal layout at all -- all the actual
+    // movement is in `transform`. See .drop's `will-change: transform` in
+    // style.css for the compositing-layer hint that makes this effective.
+    wrap.style.top = "0";
+    const fieldHeight = el("drop-field").clientHeight;
+
+    function setFallPosition(t) {
+      // Only ever sets the --fall-offset custom property, NOT the whole
+      // transform -- .drop's own CSS rule (and the pop/sink keyframes)
+      // read it via var(--fall-offset). Per PI request 2026-08-10: writing
+      // the offset straight into a JS-authored transform string used to
+      // make a correctly-answered drop visibly jump back up to 0 offset
+      // the instant popDrop()'s "correct" class took over -- the pop
+      // keyframe's `to` had its own hardcoded translate that didn't know
+      // about the drop's current fall position. Going through the shared
+      // custom property instead means the keyframe picks up wherever the
+      // drop actually was, no jump.
+      //
+      // Same -10% -> 110% visual range as before, just expressed in px
+      // (translate's own %-unit means "% of THIS element's size", not the
+      // container's, so the fall range has to be pre-converted to px here
+      // rather than passed through as a percentage). Rounded to a whole
+      // pixel -- sub-pixel positions are exactly what forces the rotated
+      // text to be re-anti-aliased at a new offset each frame.
+      const offsetPx = Math.round(((-10 + t * 120) / 100) * fieldHeight);
+      wrap.style.setProperty("--fall-offset", `${offsetPx}px`);
+    }
+    setFallPosition(0);
+
     const start = performance.now();
     function step(now) {
       if (!liveDrops.has(id)) return; // already resolved (correct/missed)
       const t = Math.min(1, (now - start) / fallMs);
-      wrap.style.top = (-10 + t * 120) + "%";
+      setFallPosition(t);
       if (t >= 1) {
         missDrop(id);
       } else {
@@ -274,7 +336,22 @@
     if (!drop) return;
     liveDrops.delete(id);
     cancelAnimationFrame(drop.rafId);
-    if (!silent) drop.el.classList.add("missed");
+    if (!silent) {
+      drop.el.classList.add("missed");
+      // Per PI request 2026-08-10: reaching the bottom uncracked is the
+      // ONLY way to lose a point. A wrong Enter submission never costs
+      // anything (see submitAnswer()) -- the participant can keep
+      // attempting a drop for as long as it's still falling, right up
+      // until it lands here. `silent` is true for runArithmeticBlock's
+      // end-of-block cleanup of still-falling drops on a skip/quit, which
+      // is NOT a genuine "reached the bottom" miss, so that path is
+      // excluded from the penalty. Clamped at 0 rather than going
+      // negative -- flag if unclamped (visibly negative) is actually
+      // wanted for the stress manipulation.
+      score = Math.max(0, score - 1);
+      el("score-value").textContent = String(score);
+      flashScoreLoss();
+    }
     blockStats.total += 1;
     logEvent("response", {
       block_index: drop.blockIndex, trial_index: drop.trialIndex, condition_label: `tier_${drop.tierId}`,
@@ -282,6 +359,17 @@
       participant_answer: null, rt: null, correct: false, missed: true,
     });
     setTimeout(() => drop.el.remove(), silent ? 0 : 300);
+  }
+
+  // Same "brief flash, no lasting lockout" treatment as flashWrong(), just
+  // on the score HUD instead of the answer bar -- the only cue that a
+  // point was actually lost.
+  function flashScoreLoss() {
+    const scoreEl = el("score");
+    scoreEl.classList.remove("score-flash");
+    void scoreEl.offsetWidth; // force reflow so re-adding the class restarts the animation
+    scoreEl.classList.add("score-flash");
+    setTimeout(() => scoreEl.classList.remove("score-flash"), 300);
   }
 
   function popDrop(id, rt) {
@@ -307,6 +395,12 @@
     el("answer-display").textContent = buffer || " ";
   }
 
+  // Purely advisory: highlights any live drop whose answer STARTS WITH the
+  // current buffer (a full match highlights too, since a string "starts
+  // with" itself -- that's the participant's "you've got it, hit Enter"
+  // cue) and flags the answer bar red when nothing on screen matches at
+  // all. Never touches `buffer` itself -- see the module docstring's
+  // "commit-based input" note for why typing no longer self-resolves.
   function updateHighlights() {
     let anyMatch = false;
     for (const drop of liveDrops.values()) {
@@ -315,8 +409,20 @@
       if (matches) anyMatch = true;
     }
     el("answer-bar").classList.toggle("mismatch", buffer.length > 0 && !anyMatch);
+    return anyMatch;
   }
 
+  // Free-text-style buffer editing ONLY -- no auto-submit, no auto-clear.
+  // Per PI request 2026-08-10: typing no longer resolves a drop the instant
+  // the buffer happens to match (that let the game half-solve itself by
+  // accident, and was also the root of an earlier bug where a WRONG entry
+  // just kept appending forever instead of clearing -- see submitAnswer(),
+  // which is now the only thing that ever resolves or clears the buffer,
+  // same as every reference "Raindrops" clone: type freely, Backspace to
+  // fix a typo, Enter to commit). This mirrors a plain text input's
+  // behavior on purpose -- the participant has to decide "this is my
+  // answer" and commit to it, rather than the game grading every keystroke
+  // live.
   function handleDigit(key) {
     if (el("game-screen").classList.contains("hidden")) return;
     if (key === "backspace") buffer = buffer.slice(0, -1);
@@ -325,16 +431,70 @@
 
     renderBuffer();
     updateHighlights();
+  }
 
+  // The one and only commit point: Enter (or the on-screen Enter key).
+  // Checks the buffer against every live drop; a match pops it exactly like
+  // before. No match -- including an empty submit, silently ignored -- logs
+  // a wrong_submission row and clears the buffer, same as a real submit
+  // action always clearing regardless of correctness (see the GitHub
+  // "Raindrops" clones this was modeled on). Deliberately NOT paired with
+  // Lumosity's input-freeze penalty on repeated wrong answers, per PI
+  // request 2026-08-10 -- the goal here is to keep the participant
+  // attempting questions, not lock them out.
+  function submitAnswer() {
+    if (el("game-screen").classList.contains("hidden")) return;
+    if (buffer === "") return;
+
+    // Pop EVERY live drop with this exact answer, not just the first one
+    // found -- each drop's answer is an independent RNG draw (see
+    // stress_mat.generate_question), so two concurrently-falling drops can
+    // legitimately land on the same number (e.g. "12 + 1" and "10 + 3"
+    // both = 13) with no way for the participant to aim at one over the
+    // other. Matches updateHighlights(), which already highlights every
+    // matching drop, not just one, and mirrors Lumosity's own "drops that
+    // share a solution pop together" rule. Collected into an array first
+    // (rather than deleting from liveDrops mid-iteration) purely so this
+    // reads unambiguously; Map iteration tolerates in-loop deletion fine.
+    const matchIds = [];
     for (const [id, drop] of liveDrops) {
-      if (String(drop.answer) === buffer) {
-        popDrop(id, (performance.now() - drop.spawnTime) / 1000);
-        buffer = "";
-        renderBuffer();
-        updateHighlights();
-        break;
-      }
+      if (String(drop.answer) === buffer) matchIds.push(id);
     }
+
+    if (matchIds.length > 0) {
+      for (const id of matchIds) {
+        const drop = liveDrops.get(id);
+        popDrop(id, (performance.now() - drop.spawnTime) / 1000);
+      }
+      buffer = "";
+      renderBuffer();
+      updateHighlights();
+      return;
+    }
+
+    // Wrong submission -- not tied to any one drop (with several falling
+    // at once there's no way to know which one the participant meant), so
+    // this is its own event type rather than a "response" row, which
+    // everywhere else always pairs 1:1 with a specific trial_start.
+    logEvent("wrong_submission", {
+      block_index: currentBlockIndex, condition_label: `tier_${currentTierId}`,
+      tier: currentTierId, participant_answer: buffer,
+    });
+    flashWrong();
+    buffer = "";
+    renderBuffer();
+    updateHighlights();
+  }
+
+  // Brief visual "that was wrong" cue on the answer bar itself -- since
+  // there's no input freeze, this is the only feedback a wrong submission
+  // gets, so it shouldn't be silent.
+  function flashWrong() {
+    const bar = el("answer-bar");
+    bar.classList.remove("wrong-flash");
+    void bar.offsetWidth; // force reflow so re-adding the class restarts the animation
+    bar.classList.add("wrong-flash");
+    setTimeout(() => bar.classList.remove("wrong-flash"), 300);
   }
 
   function onKeyDown(e) {
@@ -342,13 +502,14 @@
     if (e.key >= "0" && e.key <= "9") handleDigit(e.key);
     else if (e.key === "-") handleDigit("-");
     else if (e.key === "Backspace") handleDigit("backspace");
+    else if (e.key === "Enter") submitAnswer();
   }
 
   function showEndScreen(highScore) {
     showScreen("end-screen");
     el("end-score").textContent = `Your score: ${score}`;
     el("end-high-score").textContent = highScore
-      ? `All-time high score: ${highScore.score} (${highScore.participant_id})`
+      ? `All-time high score: ${highScore.score}`
       : "";
     document.addEventListener("keydown", function onSpace(e) {
       if (e.key === " " || e.key === "Enter") {

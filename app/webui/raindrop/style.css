@@ -33,6 +33,15 @@ html, body {
   align-self: center;
 }
 
+/* Point-loss cue (see game.js's flashScoreLoss()) -- the only feedback a
+   reached-the-bottom miss gets; same brief-flash treatment as
+   #answer-bar.wrong-flash. */
+#score.score-flash { animation: score-flash 0.3s ease-out; }
+@keyframes score-flash {
+  0% { color: #ff6b6b; }
+  100% { color: #eaf6fb; }
+}
+
 .screen {
   position: absolute;
   inset: 0;
@@ -65,11 +74,16 @@ html, body {
   transform-origin: left center;
 }
 
-#game-screen { justify-content: flex-end; }
-
 #drop-field {
   position: absolute;
-  top: 70px; left: 0; right: 0; bottom: 230px;
+  /* Falls almost to the literal bottom of the screen now, UNDER the
+     (transparent) #answer-bar/#keypad overlay below -- per PI request
+     2026-08-10, the keypad used to reserve its own separate 270px strip
+     with nothing falling behind it, so a drop visually vanished into that
+     gap well before it actually timed out, and there was no way to gauge
+     how close it was to really hitting bottom. See #answer-bar/#keypad's
+     own position:absolute + z-index for the overlay half of this. */
+  top: 70px; left: 0; right: 0; bottom: 10px;
   overflow: hidden;
 }
 
@@ -90,8 +104,23 @@ html, body {
   line-height: 1.1;
   padding-bottom: 8px;
   /* the 50%-50%-50%-0 border-radius plus a 45deg rotation gives the classic
-     teardrop silhouette; the text itself is counter-rotated upright below */
-  transform: translate(-50%, -50%) rotate(-45deg);
+     teardrop silhouette; the text itself is counter-rotated upright below.
+     --fall-offset is the ONE thing game.js's spawnDrop() ever touches per
+     frame (via style.setProperty, not by rewriting this whole transform) --
+     keeping the fall position behind a custom property, rather than baked
+     directly into a JS-authored transform string, means the pop/sink
+     keyframes below can reference the SAME var() and pick up wherever the
+     drop currently is, instead of hardcoding their own translate and
+     visibly snapping back to 0 offset when the animation takes over (which
+     is exactly what used to make a correctly-answered drop appear to jump
+     upward right as it popped). */
+  transform: translate(-50%, calc(-50% + var(--fall-offset, 0px))) rotate(-45deg);
+  /* Hints the browser to give this its own GPU compositing layer, so the
+     rotated expression text gets rasterized once and then just
+     re-translated per frame instead of being re-rasterized at a new
+     sub-pixel offset every frame -- see spawnDrop()'s setFallPosition()
+     comment for why that was making fast-tier drops look blurry. */
+  will-change: transform;
 }
 
 .drop .drop-label {
@@ -113,7 +142,10 @@ html, body {
 }
 
 @keyframes pop {
-  to { transform: translate(-50%, -50%) rotate(-45deg) scale(1.6); opacity: 0; }
+  /* Same var(--fall-offset) as .drop's own base transform, so this
+     continues from the drop's actual current position (whatever height it
+     was popped at) instead of resetting to 0 and animating upward. */
+  to { transform: translate(-50%, calc(-50% + var(--fall-offset, 0px))) rotate(-45deg) scale(1.6); opacity: 0; }
 }
 
 @keyframes sink {
@@ -121,6 +153,14 @@ html, body {
 }
 
 #answer-bar {
+  /* Floats as an overlay above #drop-field's now-extended fall zone
+     (rather than a normal-flow block after it) so a still-falling drop
+     stays visible (dimly, through the transparency) behind it. z-index:5
+     puts it above #drop-field's default stack level (0) but below #hud's
+     10, same convention as #keypad below. */
+  position: absolute;
+  left: 0; right: 0; bottom: 210px;
+  z-index: 5;
   height: 60px;
   width: 100%;
   display: flex;
@@ -134,31 +174,69 @@ html, body {
 
 #answer-bar.mismatch { color: #ff6b6b; }
 
+/* Wrong-submission cue (see game.js's flashWrong()) -- there's no input
+   freeze, so this brief flash is the only feedback a wrong Enter gets. */
+#answer-bar.wrong-flash { animation: wrong-flash 0.3s ease-out; }
+@keyframes wrong-flash {
+  0% { background: rgba(255, 107, 107, 0.55); }
+  100% { background: rgba(255, 255, 255, 0.06); }
+}
+
 #keypad {
+  /* Overlay, same reasoning as #answer-bar above -- floats above the
+     extended #drop-field instead of pushing it up, so a drop keeps falling
+     (visibly, through the transparency) behind the keypad right up to the
+     literal bottom of the screen. */
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 5;
   width: 100%;
-  height: 170px;
+  height: 210px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(4, 1fr);
+  /* 5 rows: digits/minus/0/backspace fill 4 rows at exactly 3-per-row (no
+     overflow -- backspace used to be 2-columns-wide here, which pushed it
+     into an implicit, uncounted 5th row every other key's own row height
+     didn't account for), then the full-width Enter key gets its own 5th
+     row. */
+  grid-template-rows: repeat(5, 1fr);
   gap: 2px;
-  background: #0e2331;
+  /* Per PI request 2026-08-10: transparent enough to actually SEE a drop
+     falling behind it (0.75 alpha, tried first, was barely distinguishable
+     from the near-identical-toned body background sitting behind the OLD
+     non-overlapping layout -- this is deliberately much lower now that
+     there's real content -- the falling drops -- to see through). Alpha
+     only on the backgrounds (here and on .key below), never on the key
+     labels themselves, so legibility doesn't suffer along with it. */
+  background: rgba(14, 35, 49, 0.35);
 }
 
 .key {
   border: none;
-  background: #1e4258;
+  background: rgba(30, 66, 88, 0.4);
   color: #eaf6fb;
   font-size: 26px;
   font-weight: 600;
   cursor: pointer;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); /* keeps digits legible over a moving drop behind them */
 }
 
 .key:active, .key.pressed {
-  background: #4fc3f7;
+  background: rgba(79, 195, 247, 0.85);
   color: #0e2331;
 }
 
 .key.wide { grid-column: span 2; }
+.key.full { grid-column: 1 / -1; }
+
+/* Enter is the sole commit action now (see game.js's submitAnswer()) --
+   visually distinct from the digit keys so it reads as "the" primary
+   action, not just another key. */
+.key.enter-key {
+  background: rgba(47, 158, 110, 0.4);
+  font-size: 20px;
+}
+.key.enter-key:active, .key.enter-key.pressed { background: rgba(63, 211, 144, 0.85); }
 
 #end-heading, #pause-heading { font-size: 34px; font-weight: 700; margin-bottom: 16px; }
 #end-score, #end-high-score, #pause-score { font-size: 22px; margin-bottom: 8px; }

@@ -81,7 +81,7 @@ python -m app.run_task --task stress --participant-id TEST001          # raindro
 python -m app.run_task --task highway --participant-id TEST001         # highway only
 python -m app.run_task --task attention_focus --participant-id TEST001 # Schulte + Stroop
 python -m app.run_task --task sart --participant-id TEST001            # SART (separate task)
-python -m app.run_task --task attention --participant-id TEST001       # OpenMATB (retired)
+python -m app.run_task --task sart --participant-id TEST001 --skip-practice   # skip SART's 18-trial practice block
 
 # fastest possible iteration loop -- mock devices, skip sync, sped up:
 python -m app.run_task --task emotion --participant-id TEST001 --devices-mode mock --skip-device-sync --demo-scale 0.1
@@ -101,6 +101,53 @@ hardware):
 | `Esc` | Quit the whole session/task right now (logs `session_aborted`) |
 | `B` | Skip the rest of the current block/tier/round (where applicable) |
 | `N` | Skip the current clip/trial only (emotion task) |
+
+## Demoing tasks to the participant before a real session
+
+Before the real recording session, walk the participant through each task
+once so they know what to expect -- this is what lets the actual
+data-collection run skip its own in-app familiarization/practice (see
+`--skip-familiarization` above and `--skip-practice` in "Attention task
+(SART)"). Run each one standalone via `app.run_task`, same as the "Test ONE
+task module in isolation" commands above, but with two things kept
+deliberate for a *participant-facing* demo rather than a developer test:
+
+- `--devices-mode mock` -- a demo run captures no real biosignal data, so
+  there's no reason to require hardware connected/synced for it (this also
+  happens to be `devices.mode`'s config default already, but pass it
+  explicitly so a demo never accidentally waits on a real BLE sync).
+- No `--demo-scale` (i.e. leave it at its default `1.0`) -- the participant
+  needs to feel the *real* pacing (raindrop's countdown, highway's hazard
+  speed, SART's fixed 1.15s/trial) to know what they're actually signing up
+  for; scaling it down here would demo a task that doesn't match what the
+  real session then puts them through.
+
+```bash
+python -m app.run_task --task stress --participant-id P001 --devices-mode mock          # raindrop
+python -m app.run_task --task highway --participant-id P001 --devices-mode mock         # highway
+python -m app.run_task --task attention_focus --participant-id P001 --devices-mode mock # Schulte + Stroop
+python -m app.run_task --task sart --participant-id P001 --devices-mode mock            # SART (practice block on by default)
+```
+
+Each of these writes its own throwaway `sessions/P001_<task>_<timestamp>/`
+folder (see "Where session data is saved" below), so a demo run is never
+mistaken for -- or mixed into -- that participant's real session data.
+
+`--task emotion` is deliberately **not** listed here: it plays clips from
+the real study's clip set (`emotion_task.manifest_path`/`fixed_clips_path`),
+so running it standalone as a demo would show the participant the actual
+stimuli before the real task -- exactly what `app.main`'s built-in
+familiarization phase avoids, by auto-previewing only the dedicated,
+non-scored `familiarization_clip_id` clip instead. That preview (plus the
+raindrop/highway/Schulte/Stroop auto-play demos also baked into
+familiarization) already runs automatically as part of a normal
+`python -m app.main` invocation -- see the one-liner above -- whenever
+`--skip-familiarization` is *not* passed; there's no separate standalone
+command for it today.
+
+Once the participant has seen SART's demo above, the real session should
+pass `--skip-practice` so they aren't shown the same practice block twice --
+`run_full_session.ps1` already does this (see "Attention task (SART)").
 
 ## Changing config parameters
 
@@ -180,14 +227,14 @@ It scrapes the official PsychArchives item page for each clip's download link an
 
 Clips are played in an external video player -- [VLC](https://www.videolan.org/vlc/) by default, auto-detected on PATH or its common Windows install location -- rather than PsychoPy's own `MovieStim`, which had recurring decode-stall and early-cutoff bugs. Install VLC, or point `emotion_task.external_player_path` in `session_config.yaml` at a different player's `.exe`. Each clip runs fullscreen via `vlc --play-and-exit` and closes itself when playback ends (or if the participant closes it manually); our app just waits for that process to exit before showing the rating screen.
 
-Our own PsychoPy window is closed before VLC launches and reopened right after -- two apps each holding exclusive fullscreen on the same display at once is what caused VLC to sometimes render incorrectly when our own window was also fullscreen (same reasoning as the OpenMATB subprocess below). We also pass `--no-one-instance` (so playback always runs in the process we're actually waiting on, rather than being handed off via IPC to an already-running VLC) and `--qt-continue=0` (so a "continue playback where you left off?" dialog can't silently block `--play-and-exit` forever) -- together these were the two causes of playback occasionally not displaying correctly or never returning control to the app.
+Our own PsychoPy window is closed before VLC launches and reopened right after -- two apps each holding exclusive fullscreen on the same display at once is what caused VLC to sometimes render incorrectly when our own window was also fullscreen. We also pass `--no-one-instance` (so playback always runs in the process we're actually waiting on, rather than being handed off via IPC to an already-running VLC) and `--qt-continue=0` (so a "continue playback where you left off?" dialog can't silently block `--play-and-exit` forever) -- together these were the two causes of playback occasionally not displaying correctly or never returning control to the app.
 
 ## Attention/focus task (Schulte table + Stroop test)
 
 Two selective-attention/interference-control games added per PI discussion
 2026-08-04, taking over the highway task's old slot as the fourth step of
-`python -m app.main`'s own flow (see "Highway dodge task" below for that
-task's current, un-wired status). Modeled on
+`python -m app.main`'s own flow (the highway task has since moved to Task 3
+"STRESS" instead -- see "Highway dodge task" below). Modeled on
 [freefocusgames.com's Schulte table](https://www.freefocusgames.com/games/schulte-table)
 and [Stroop effect test](https://www.freefocusgames.com/games/stroop-effect-test).
 
@@ -293,12 +340,11 @@ every other task.
 
 The attention/focus task is the **Sustained Attention to Response Task (SART)**
 (Robertson et al., 1997) -- participants press SPACE for every digit 1-9
-*except* the omit number(s) (default: 3), and withhold on those. It replaces
-OpenMATB (see "Attention task (OpenMATB, retired)" below) after hands-on
-comparison of several existing attention/vigilance tasks -- PVT, SART,
-gradCPT, the Lateralized Attention Task, and a PsychoPy whack-a-mole go/no-go
-game -- found SART the most intuitive to play while still requiring genuine
-sustained focus.
+*except* the omit number(s) (default: 3), and withhold on those. Chosen after
+hands-on comparison of several existing attention/vigilance tasks -- PVT,
+SART, gradCPT, the Lateralized Attention Task, and a PsychoPy whack-a-mole
+go/no-go game -- found SART the most intuitive to play while still requiring
+genuine sustained focus.
 
 **Ported into this repo 2026-08-05** as `app/tasks/attention_sart.py`, from
 the standalone tryout originally cloned to
@@ -311,6 +357,28 @@ task's slot; reverted so it can be run as its own command instead):
 ```bash
 python -m app.run_task --task sart --participant-id P001
 ```
+
+**Running the main session and SART back-to-back for one participant:**
+since participants are now shown a demo of every task (including SART)
+before the session starts, there's no need for SART's own in-app practice
+block anymore -- pass `--skip-practice` to skip straight to the real
+135-trial block. To run both commands in sequence (main session, then a
+short countdown, then SART) without typing two commands by hand, use
+`run_full_session.ps1` (repo root) from an already-activated
+`data_collection` prompt:
+
+```powershell
+(data_collection) PS ...\biosignal-emotion-stress-attention-protocol> .\run_full_session.ps1 -ParticipantId shruti
+```
+
+This runs `python -m app.main --participant-id shruti --devices-mode real
+--skip-familiarization`, waits 5s (`-CountdownSeconds` to change), then runs
+`python -m app.run_task --task sart --participant-id shruti --devices-mode
+real --skip-practice`. It checks the main session's exit code first and
+will **not** start SART if the operator aborted it (Escape) or it crashed --
+see `app/main.py`/`app/run_task.py`'s exit codes (`0` = completed, `2` =
+operator aborted, `1` = crashed). `-DevicesMode mock` and
+`-SkipDeviceSync` are also available, applied to both commands.
 
 Same fullscreen instructions -> 18-trial practice block (CORRECT/INCORRECT
 feedback) -> a new ~90s pre-task physiological baseline (fixation cross, not
@@ -352,36 +420,6 @@ had, now timestamped on this project's host clock
 values relative to the script's own process start -- so it lines up with the
 biosignal timestream the same way every other task's events already do,
 without a separate alignment step.
-
-## Attention task (OpenMATB, retired)
-
-Originally used [OpenMATB](https://github.com/juliencegarra/OpenMATB) -- an existing, validated sustained-attention/workload task battery -- run standalone as its own step, **after** `python -m app.main` (the emotion+stress session) finishes, rather than orchestrated by our own code. Retired in favor of SART (above): OpenMATB's subprocess/separate-venv architecture (needed because it requires a pyglet version incompatible with PsychoPy's) caused severe screen flickering, and its combined gauge-monitoring + resource-management UI was unintuitive for participants. Kept documented here (not deleted) for reference/provenance, same as `attention_nback.py`. It is **not** committed to this repo (it's a separate open-source project, run via its own `main.py`); clone it locally and point `app/config/session_config.yaml`'s `attention_task.openmatb.install_path` at it (default: `vendor/OpenMATB`, gitignored).
-
-`app/tasks/attention_openmatb.py` (launched via `python -m app.run_task --task attention`) is a Python wrapper that generates a scenario + config.ini and drives this as a subprocess from within our own event logging/window flow -- useful for testing that integration path, but not currently called from `app/main.py`. To just run OpenMATB directly instead (no wrapper), see the commands below.
-
-**OpenMATB needs its own isolated Python environment -- do NOT install its requirements into this project's `data_collection`/`exg_collection` conda env.** OpenMATB requires `pyglet>=2.1,<3`, a backwards-incompatible rewrite (pyglet 2.x removed `pyglet.canvas` entirely) that breaks PsychoPy's window backend, which is hard-pinned to `pyglet==1.4.11` on Windows. Set it up with its own `.venv` instead (matches OpenMATB's own README convention):
-
-```bash
-git clone https://github.com/juliencegarra/OpenMATB vendor/OpenMATB
-cd vendor/OpenMATB
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
-# .venv/bin/python3 -m pip install -r requirements.txt        # macOS/Linux
-```
-
-To run OpenMATB directly (no wrapper), set `scenario_path` in `vendor/OpenMATB/config.ini` to the scenario file you want, then:
-
-```bash
-cd vendor/OpenMATB
-.venv/Scripts/python.exe main.py   # Windows
-# .venv/bin/python3 main.py        # macOS/Linux
-```
-
-`app/tasks/attention_openmatb.py` launches `vendor/OpenMATB/.venv/.../python.exe main.py` as a subprocess -- never this project's own interpreter -- so the two environments' conflicting pyglet versions never collide.
-
-Only OpenMATB's `sysmon` (system monitoring) and `resman` (resource management) subtasks are used -- both are entirely keyboard-driven. Its `track` (tracking) subtask requires a physical joystick with no keyboard/mouse fallback in OpenMATB's code, so it's skipped (no joystick in this protocol's setup).
-
-Each run (practice + real) generates a scenario file and `config.ini` inside the `vendor/OpenMATB` checkout, launches `python main.py` there, and afterward copies OpenMATB's own CSV log (and the generated scenario, for provenance) into the session folder. See `app/tasks/attention_openmatb.py` for the generation/orchestration logic, and `attention_nback.py` for the retired spatial n-back design it replaced (kept, commented out, for reference).
 
 ## Data
 

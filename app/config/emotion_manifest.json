@@ -1,5 +1,5 @@
 {
-  "_comment": "OpenLAV (Open Library of Affective Videos) clips, replacing the earlier FilmStim set (see project memory for that history). assets/clips is now a junction to D:\\Datasets\\OpenLAV (was D:\\videos). category->valence_group: joy/satisfaction/fascination -> positive, anxiety/fear/sadness -> negative, indifference -> neutral. disgust was intentionally dropped from negative per explicit user request (2026-07-30). surprise/compassion/irritation/rage excluded (ambiguous valence or too few clips -- see build script comments). Every clip here is language_free=TRUE per the dataset's own metadata (no spoken dialogue/narration), so there is no language-bias concern at all this time, unlike the FilmStim French-clips issue. Manifest deliberately includes the FULL language_free pool per mapped category (not a hand-picked subset) so run_emotion_task's existing per-session random group_clips shuffle draws from real variety -- every participant should see a different set of clips, not the same ~8 recycled each time.",
+  "_comment": "OpenLAV (Open Library of Affective Videos) clips, replacing the earlier FilmStim set (see project memory for that history). assets/clips is now a junction to D:\\Datasets\\OpenLAV (was D:\\videos). category->valence_group: joy/satisfaction/fascination -> positive, anxiety/fear/sadness -> negative, indifference -> neutral. disgust was intentionally dropped from negative per explicit user request (2026-07-30). surprise/compassion/irritation/rage excluded (ambiguous valence or too few clips -- see build script comments). Every clip here is language_free=TRUE per the dataset's own metadata (no spoken dialogue/narration), so there is no language-bias concern at all this time, unlike the FilmStim French-clips issue. Manifest deliberately includes the FULL language_free pool per mapped category (not a hand-picked subset) so run_emotion_task's existing per-session random group_clips shuffle draws from real variety -- every participant should see a different set of clips, not the same ~8 recycled each time. 2026-08-11: clip_82-84 (filmstim_positive) / clip_85-87 (filmstim_negative) are a hand-picked, participant-supplied set of 3 positive + 3 negative clips (own files, not from OpenLAV) that fully REPLACE OpenLAV for those two valence groups this session -- see app/config/emotion_fixed_clips.json and emotion_task.clips_per_group in session_config.yaml (now {positive: 3, negative: 3, neutral: 4}). Neutral is untouched and still drawn from OpenLAV.",
   "clips": [
     {
       "clip_id": "clip_01",
@@ -729,6 +729,60 @@
       "language": "contains spoken dialogue/narration (language_free=FALSE) -- included by explicit request",
       "file_path": "assets/clips/indifference/VID_1015.webm",
       "duration_sec": 41.0
+    },
+    {
+      "clip_id": "clip_82",
+      "valence_group": "positive",
+      "fine_grained_label": "filmstim_positive",
+      "title": "POS_01",
+      "language": "unknown -- participant-supplied clip, not from OpenLAV",
+      "file_path": "assets/clips/filmstim_positive/POS_01.mp4",
+      "duration_sec": 60.0
+    },
+    {
+      "clip_id": "clip_83",
+      "valence_group": "positive",
+      "fine_grained_label": "filmstim_positive",
+      "title": "POS_02",
+      "language": "unknown -- participant-supplied clip, not from OpenLAV",
+      "file_path": "assets/clips/filmstim_positive/POS_02.mp4",
+      "duration_sec": 70.0
+    },
+    {
+      "clip_id": "clip_84",
+      "valence_group": "positive",
+      "fine_grained_label": "filmstim_positive",
+      "title": "POS_03",
+      "language": "unknown -- participant-supplied clip, not from OpenLAV",
+      "file_path": "assets/clips/filmstim_positive/POS_03.mp4",
+      "duration_sec": 95.0
+    },
+    {
+      "clip_id": "clip_85",
+      "valence_group": "negative",
+      "fine_grained_label": "filmstim_negative",
+      "title": "NEG_01",
+      "language": "unknown -- participant-supplied clip, not from OpenLAV",
+      "file_path": "assets/clips/filmstim_negative/NEG_01.mp4",
+      "duration_sec": 80.0
+    },
+    {
+      "clip_id": "clip_86",
+      "valence_group": "negative",
+      "fine_grained_label": "filmstim_negative",
+      "title": "NEG_02",
+      "language": "unknown -- participant-supplied clip, not from OpenLAV",
+      "file_path": "assets/clips/filmstim_negative/NEG_02.mp4",
+      "duration_sec": 67.3
+    },
+    {
+      "clip_id": "clip_87",
+      "valence_group": "negative",
+      "fine_grained_label": "filmstim_negative",
+      "title": "NEG_03",
+      "language": "unknown -- participant-supplied clip, not from OpenLAV",
+      "file_path": "assets/clips/filmstim_negative/NEG_03.mp4",
+      "duration_sec": 87.0
     }
   ]
 }

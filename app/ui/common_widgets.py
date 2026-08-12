@@ -1,3 +1,5 @@
+import math
+
 from psychopy import core, event, visual
 
 # Shared dark theme. BG_COLOR is applied to the psychopy Window itself
@@ -162,17 +164,39 @@ def show_title_screen(win, heading: str, subtext: str = "", wait_key=("space", "
         raise UserQuit()
 
 
-def fixation_cross(win, duration, allow_skip: bool = False, progress_label: str | None = None):
+def _format_countdown(sec: float) -> str:
+    """mm:ss, e.g. 75 -> "1:15" -- mirrors app/webui/video_player/player.js's
+    formatCountdown, so the psychopy-side baseline countdown (see
+    fixation_cross's show_timer) reads the same as the web-based emotion/
+    stress baseline countdowns."""
+    s = max(0, math.ceil(sec))
+    return f"{s // 60}:{s % 60:02d}"
+
+
+def fixation_cross(
+    win, duration, allow_skip: bool = False, progress_label: str | None = None, show_timer: bool = False,
+):
     """If allow_skip, SKIP_BLOCK_KEY/SKIP_TRIAL_KEY are live and raise
     SkipBlock/SkipTrial -- off by default so callers without skip semantics
     (e.g. the attention task) behave exactly as before. progress_label, if
-    given, draws a small persistent corner label (e.g. "Clip 2 of 3")."""
+    given, draws a small persistent corner label (e.g. "Clip 2 of 3").
+    show_timer, if True, draws a small low-key mm:ss countdown under the
+    cross -- mirrors the web emotion/stress player's baseline countdown (see
+    player.js's runFixation/formatCountdown): off by default since most
+    fixation_cross calls are a few seconds, where a countdown adds nothing;
+    on for longer holds (e.g. sart_task's pre-task baseline) where
+    participants otherwise have no feedback that anything is still
+    happening."""
     cross = visual.TextStim(win, text="+", height=0.1, color=TEXT_COLOR)
     label = (
         visual.TextStim(win, text=progress_label, height=0.03, pos=(-0.7, 0.46), color=MUTED_COLOR, alignText="left", anchorHoriz="left")
         if progress_label else None
     )
-    if not allow_skip:
+    timer_stim = (
+        visual.TextStim(win, text="", height=0.035, pos=(0, -0.18), color=MUTED_COLOR)
+        if show_timer else None
+    )
+    if not allow_skip and not show_timer:
         cross.draw()
         if label:
             label.draw()
@@ -200,12 +224,17 @@ def fixation_cross(win, duration, allow_skip: bool = False, progress_label: str 
     clock = core.Clock()
     while clock.getTime() < duration:
         check_quit()
-        check_skip_block()
-        check_skip_trial()
+        if allow_skip:
+            check_skip_block()
+            check_skip_trial()
         cross.draw()
         if label:
             label.draw()
-        draw_key_hint(win)
+        if timer_stim:
+            timer_stim.setText(_format_countdown(duration - clock.getTime()))
+            timer_stim.draw()
+        if allow_skip:
+            draw_key_hint(win)
         win.flip()
 
 

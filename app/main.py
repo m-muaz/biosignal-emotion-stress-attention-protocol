@@ -37,6 +37,7 @@ make the task impossible for a human to actually try.
 
 import argparse
 import random
+import sys
 import time
 from pathlib import Path
 
@@ -47,6 +48,7 @@ from app.eventlog.session_manifest import write_session_manifest
 from app.sync.device_sync import sync_all_blocking
 from app.tasks.emotion_faced import select_task_clips
 from app.tasks.session_shell import run_session
+from app.ui.common_widgets import UserQuit
 from app.webui.bridge import set_windows_dpi_awareness
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -128,6 +130,16 @@ def main():
         blocks, _selected_by_group = select_task_clips(clips, config["emotion_task"], ctx.rng, fixed_clips=fixed_clips)
 
         run_session(ctx, config, clips, blocks, args.skip_questionnaire, args.skip_familiarization)
+        return 0
+
+    except UserQuit:
+        # Operator pressed Escape (or closed the window) -- an intentional
+        # abort, not a crash. Distinct exit code (2) so a calling script
+        # (e.g. a wrapper that chains this into `app.run_task --task sart`)
+        # can tell "operator quit" apart from "it crashed" and "it finished".
+        print("Session aborted by operator (Escape pressed).")
+        event_logger.log("session_aborted", task=None)
+        return 2
 
     except Exception:
         # Deliberately NOT silent -- an unexpected crash here (before/outside
@@ -138,9 +150,10 @@ def main():
         print("\n--- SESSION CRASHED -- full traceback below ---")
         traceback.print_exc()
         event_logger.log("session_crashed", task=None, traceback=traceback.format_exc())
+        return 1
     finally:
         event_logger.close()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

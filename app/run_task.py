@@ -26,10 +26,12 @@ Usage:
     python -m app.run_task --task highway --participant-id TEST001
     python -m app.run_task --task attention_focus --participant-id TEST001
     python -m app.run_task --task sart --participant-id TEST001
+    python -m app.run_task --task sart --participant-id TEST001 --fullscreen
 """
 
 import argparse
 import random
+import sys
 import time
 from pathlib import Path
 
@@ -76,7 +78,10 @@ def parse_args():
         "--skip-device-sync", action="store_true",
         help="Skip the device sync step entirely (ORs with devices.skip_sync in session_config.yaml).",
     )
-    parser.add_argument("--fullscreen", action="store_true", help="Only affects --task attention (its psychopy window).")
+    parser.add_argument(
+        "--fullscreen", action="store_true",
+        help="Only affects --task attention/sart (the two tasks that still open their own real psychopy window).",
+    )
     parser.add_argument(
         "--emotion-clip-selection", choices=["fixed", "random"], default=None,
         help="Override emotion_task.clip_selection_mode from config (fixed = same predefined clips for everyone; random = legacy per-participant sampling).",
@@ -84,6 +89,12 @@ def parse_args():
     parser.add_argument(
         "--emotion-block-structure", choices=["interleaved", "grouped_by_valence"], default=None,
         help="Override emotion_task.block_structure from config (interleaved = mixed-valence blocks; grouped_by_valence = legacy FACED-style same-valence blocks).",
+    )
+    parser.add_argument(
+        "--skip-practice", action="store_true",
+        help="Only affects --task sart. Skips SART's 18-trial practice block (overrides sart_task.practice from "
+             "config to False) -- for when the participant already saw a demo of every task beforehand and "
+             "doesn't need a separate in-task practice round. Mirrors app/main.py's --skip-familiarization.",
     )
     return parser.parse_args()
 
@@ -154,6 +165,8 @@ def main():
         config["emotion_task"]["clip_selection_mode"] = args.emotion_clip_selection
     if args.emotion_block_structure:
         config["emotion_task"]["block_structure"] = args.emotion_block_structure
+    if args.skip_practice:
+        config["sart_task"]["practice"] = False
 
     # --participant-id (CLI) takes priority; session.participant_id (config)
     # is only the debug-run fallback -- see that key's comment in
@@ -216,10 +229,15 @@ def main():
 
         event_logger.log("session_end", task=args.task)
         print(f"\n'{args.task}' task complete. Event log written to {session_dir / 'events.jsonl'}")
+        return 0
 
     except UserQuit:
+        # Distinct exit code (2) from a crash (1) so a calling script (e.g. a
+        # wrapper chaining `app.main` into `app.run_task --task sart`) can
+        # tell "operator quit" apart from "it crashed" and "it finished".
         print("Task run aborted by operator (Escape pressed).")
         event_logger.log("session_aborted", task=None)
+        return 2
     except Exception:
         # Deliberately NOT silent -- see app/main.py's main() for the same reasoning.
         import traceback
@@ -227,9 +245,10 @@ def main():
         print("\n--- TASK RUN CRASHED -- full traceback below ---")
         traceback.print_exc()
         event_logger.log("session_crashed", task=None, traceback=traceback.format_exc())
+        return 1
     finally:
         event_logger.close()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

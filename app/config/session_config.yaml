@@ -1,28 +1,10 @@
 # Session configuration for the Emotion/Stress/Attention collection protocol.
-# All durations are the "real" (full-session) values from Engineering_Document.md.
-# A --demo-scale multiplier (applied uniformly at runtime, see app/config/loader.py)
-# lets the whole 63-min protocol be walked through quickly for a demo run.
+# Durations are full-session values; --demo-scale multiplier can speed through it for a demo run (see app/config/loader.py).
 
 session:
-  # Retimed 2026-08-05 per PI budget discussion (target ~60 min total,
-  # accepting a bit over): prep 10 + familiarization 3 + emotion ~23.7
-  # (6/group, block-baseline scheme) + break 2.5 + stress ~10 (raindrop 6 +
-  # highway 4, both wired into session_shell.py) + break 2.5 +
-  # attention/focus ~6 (Schulte/Stroop, 4/game) + debrief 0 = ~57.7 min.
-  # SART (sart_task below) is a SEPARATE task run via its own standalone
-  # command, NOT part of this total -- see [[project_attention_task_sart]].
-  # See docs/session_overview_2026-08-05.md for the full per-task
-  # breakdown/rationale.
-  total_duration_min: 58
-  random_seed: null   # unused -- rng is seeded from session start time (see app/main.py, app/run_task.py); actual seed used is recorded in each session's session_manifest.json
-  # participant_id: set here to avoid retyping --participant-id on every debug
-  # run. --participant-id (CLI) takes priority when given; this is only the
-  # fallback used when the CLI flag is omitted. Leaving both unset is an error
-  # (app/main.py and app/run_task.py both require one or the other). Real
-  # sessions should still pass --participant-id explicitly rather than rely on
-  # this -- it's meant for local debugging, not to become the actual
-  # per-participant value in a shared config file.
-  participant_id: null
+  total_duration_min: 58   # sum of prep/familiarization/emotion/breaks/stress/attention-focus budgets; sart_task is separate and not included
+  random_seed: null   # unused -- rng is seeded from session start time; actual seed recorded in each session's session_manifest.json
+  participant_id: null   # fallback used only when --participant-id (CLI) is omitted; one of the two is required
 
 preparation:
   duration_min: 10
@@ -31,28 +13,14 @@ familiarization:
   duration_min: 3
 
 breaks:
-  # Both bumped to 2.5 min (from 3/2) per PI request 2026-08-05 -- same 5 min
-  # combined total as before, just rebalanced evenly between the two.
-  after_task1_min: 2.5
-  after_task2_min: 2.5   # between the stress task and the attention/focus task
+  after_task1_min: 1
+  after_task2_min: 1   # between the stress task and the attention/focus task
 
 debrief:
-  # Zeroed out per PI request 2026-08-05 -- the conclusion message itself
-  # (shell.js's final showMessage()) is self-paced (participant presses
-  # SPACE), not a real timed block, so this was always just a rough
-  # estimate of reading time, not an elapsed-time budget item. Kept at 0
-  # rather than deleted so `session.total_duration_min`'s arithmetic stays
-  # legible against the other blocks.
-  duration_min: 0
+  duration_min: 0   # conclusion screen is self-paced (SPACE to continue), not a real timed block
 
 attention_task:
-  # Spatial n-back (grid) design retired -- see app/tasks/attention_nback.py (kept,
-  # commented out, for reference). Replaced by OpenMATB (juliencegarra/OpenMATB), an
-  # existing, validated sustained-attention/workload battery, run as a subprocess so
-  # we don't reinvent continuous vigilance measurement from scratch.
-  # NOT run by app/main.py's session flow (emotion -> stress only, for now) --
-  # OpenMATB runs as its own standalone step afterward. This block is still used
-  # by `python -m app.run_task --task attention` for testing that path in isolation.
+  # Legacy/standalone test block (spatial n-back retired, OpenMATB not wired into the active session flow) -- see attention_focus_task/sart_task for the tasks actually run in-session.
   duration_min: 15
   cue_duration_sec: 5
   practice_duration_sec: 60       # untimed practice run, not part of the scored dataset
@@ -65,430 +33,115 @@ attention_task:
     screen_index: 0
     sysmon_alerttimeout_ms: 10000          # how long an unaddressed failure stays active before auto-clearing as a MISS
     sysmon_feedback_duration_ms: 1500
-    sysmon_failure_interval_range_sec: [10, 20]   # spacing between induced sysmon failures (pseudo-random, seeded by session rng)
+    sysmon_failure_interval_range_sec: [10, 20]   # spacing between induced sysmon failures
 
 emotion_task:
-  # Retimed 2026-08-05 (PI budget discussion): 20-min target measured in
-  # CONTROLLED time only (clip length + rest + block baseline) -- self-paced
-  # rating time is deliberately excluded from this budget (participant
-  # reaction time isn't something we control, so we don't engineer around
-  # it -- see docs/session_overview_2026-08-05.md). Real controlled total at
-  # 6/group + the block_baseline scheme below works out to ~23.7 min (still
-  # ~23.7 min after the 2026-08-06 positive-group arousal fix below -- net
-  # +12s).
-  duration_min: 24
+  duration_min: 24   # controlled time only (clip length + rest + block baseline); self-paced rating time is excluded
   valence_groups: [positive, negative, neutral]
-  # clips_per_group: how many clips to select per valence group. Either a
-  # single int applied to all groups (legacy), or a dict keyed by
-  # valence_group so each can be set independently -- e.g. dial back one
-  # group later without touching the others. Cut 10/group -> 6/group
-  # (18 total) 2026-08-05 to fit the 20-min target once fixation/rest/
-  # block-baseline overhead is counted -- keeps the same hand-picked
-  # joy/sadness/indifference clips from 2026-08-04, just the 6 SHORTEST per
-  # group (see scripts/emotion_clip_picks_2026-08-04.txt for the full
-  # candidate list this was trimmed from). 2026-08-06: positive group's
-  # picks are no longer strictly "6 shortest" -- 3 of them (VID_502/517/512)
-  # turned out to have a broken near-zero arousal_wsd (see
-  # app/config/emotion_fixed_clips.json's _comment), so they were swapped
-  # for the next-highest REAL-arousal clips from the same 2026-08-04
-  # candidate list instead, to actually satisfy the "high arousal -> strong
-  # emotion induction" intent. See app/config/emotion_fixed_clips.json for
-  # the current clip set.
-  clips_per_group: { positive: 6, negative: 6, neutral: 6 }
-  # num_blocks: how many blocks the interleaved layout splits the pooled,
-  # selected clips into (see block_structure below) -- independent of
-  # clips_per_group/valence_groups, e.g. 18 selected clips can be laid out
-  # as 3 blocks of 6, 2 of 9, 6 of 3, etc. Only used when
-  # block_structure: interleaved; grouped_by_valence always uses
-  # len(valence_groups) blocks instead.
-  num_blocks: 3
-  # fixation_duration_sec: no longer used by the active web player (see
-  # block_baseline below, which replaced per-clip fixation entirely
-  # 2026-08-05) -- kept only because app/tasks/emotion_faced.py's retired
-  # psychopy run_emotion_task()/_run_rest() (dead code, never called by the
-  # active flow -- see app/run_task.py/session_shell.py, which both use
-  # emotion_web_player.py instead) still reads this key.
-  fixation_duration_sec: 5
+  clips_per_group: { positive: 3, negative: 3, neutral: 4 }   # clips selected per valence group
+  num_blocks: 3   # blocks the interleaved layout splits selected clips into (block_structure: interleaved only)
+  fixation_duration_sec: 5   # unused by the active web player; kept only for the retired psychopy emotion_faced.py path
   rest_duration_sec: 5
-  # block_baseline: 3 longer physiological-baseline touchpoints per block
-  # (start/mid/end), replacing the old per-clip 5s fixation entirely -- per
-  # PI request 2026-08-05. Rationale: many short (5-15s) baseline snippets
-  # sum to real seconds but each one individually chunks into too few
-  # windows to be useful for windowed DL analysis (e.g. a 15s snippet only
-  # yields ~15 1s-windows); a handful of longer ones per block fixes that
-  # without needing literal parity with active/task time (which would cost
-  # far more session time than the budget allows -- see
-  # docs/session_overview_2026-08-05.md). start/mid fire before/mid-block;
-  # end fires after the block's last clip (mid REPLACES the ordinary
-  # rest_duration_sec slot at that position, not in addition to it -- see
-  # app/webui/video_player/player.js's runBlock()). Implemented in
-  # app/webui/video_player/player.js's runBaselinePeriod(), logged as
-  # baseline_start/baseline_end events (block_index + position) distinct
-  # from ordinary trial/rest events.
-  block_baseline:
-    start_sec: 90
-    mid_sec: 60
-    end_sec: 60
-  # rating_duration_sec: DEAD CONFIG -- not read anywhere in the codebase
-  # (grepped app/tasks/, app/webui/: zero hits). The rating screen
-  # (app/webui/video_player/player.js's runRatings()) is fully self-paced --
-  # no timer, no countdown -- the participant clicks/keys through
-  # valence/arousal/liking at their own pace and it advances once all 3 are
-  # answered. This value doesn't do anything today; flag to the PI if you
-  # want it removed outright, or if a real response-deadline for ratings is
-  # wanted after all (would need actual code in runRatings(), not just this
-  # value).
-  rating_duration_sec: 30
+  block_baseline:   # physiological-baseline touchpoints per block (start/mid/end), replacing per-clip fixation
+    start_sec: 60
+    mid_sec: 10
+    end_sec: 15
+  rating_duration_sec: 30   # dead config -- ratings screen is fully self-paced, this value isn't read anywhere in code
   rating_scale_min: 1
   rating_scale_max: 7
   rating_items: [valence, arousal, liking]
   dominance_enabled: false        # config-toggleable 4th rating item
   manifest_path: app/config/emotion_manifest.json
-  # clip_selection_mode: fixed -- every participant sees the SAME clips per
-  # PI request (2026-08-02), so results aren't confounded by which random
-  # clips a given participant happened to draw; only presentation order is
-  # randomized. The fixed set (app/config/emotion_fixed_clips.json) was
-  # chosen by ranking OpenLAV's video_data.csv arousal scores within each
-  # valence group -- see scripts/select_fixed_emotion_clips.py. Set to
-  # `random` to restore the old per-participant random sampling from the
-  # full manifest pool (legacy behavior, kept for future use).
-  clip_selection_mode: fixed
+  clip_selection_mode: fixed   # fixed = same clips every participant; `random` restores per-participant random sampling from the full manifest
   fixed_clips_path: app/config/emotion_fixed_clips.json
-  # Familiarization preview clip -- fixed to a single neutral clip (per PI
-  # request) instead of a random pick from the unused pool, so every
-  # participant previews the exact same low-key example before the real
-  # task. clip_57/VID_901 is a neutral clip NOT in emotion_fixed_clips.json's
-  # real-task selection, so the preview never repeats a clip shown for real.
-  # (Was clip_47/VID_1004 until the 2026-08-04 hand-picked selection pulled
-  # VID_1004 into the real neutral group -- see scripts/manual_clips.txt.)
-  familiarization_clip_id: clip_57
-  # block_structure: interleaved -- each block mixes valence groups (e.g.
-  # positive -> negative -> positive/negative/neutral) per PI request
-  # (2026-08-02), instead of one valence per block. Set to
-  # `grouped_by_valence` to restore the old FACED-style same-valence blocks
-  # (legacy behavior, kept for future use -- also overridable via
-  # `--emotion-block-structure` in app/run_task.py for quick testing).
-  block_structure: interleaved
+  familiarization_clip_id: clip_57   # neutral preview clip, not part of the real-task clip set
+  block_structure: interleaved   # interleaved mixes valence groups per block; `grouped_by_valence` uses one valence per block
 
 stress_task:
-  # duration_min here is RAINDROP alone: trial_order (3 trials) x
-  # (baseline_duration_sec + arithmetic_duration_sec) = 3x120s = 6 min.
-  # Per PI request 2026-08-05, "stress" as a whole (~10 min target) is
-  # raindrop (~6 min) + attention_highway_task (~4 min) combined, run
-  # back-to-back within "TASK 3: STRESS" -- see attention_highway_task's
-  # comment; wired into session_shell.py as of 2026-08-05.
-  duration_min: 6
-  baseline_duration_sec: 60
+  duration_min: 6   # raindrop alone: trial_order (3 trials) x (baseline_duration_sec + arithmetic_duration_sec)
+  baseline_duration_sec: 10
   arithmetic_duration_sec: 60
-  # baseline_mode: per_trial (default) shows a fresh baseline fixation + a
-  # participant-paced "ready for next round" pause before EVERY tier --
-  # each stress ramp gets its own physiological reference point, and the
-  # participant gets a breather between rounds. Set to `once` to instead
-  # show the baseline only ONCE at the very start, then run every tier in
-  # trial_order back-to-back with no rest in between at all -- for when you
-  # want a single baseline reference followed by one continuous, unbroken
-  # stress ramp (a task built to induce panic works against itself if it
-  # keeps letting the participant recover mid-ramp). Per PI request
-  # 2026-08-04. See app/webui/raindrop/game.js's main().
-  baseline_mode: per_trial
-  hurry_up_threshold_fraction: 0.8  # unused by the raindrop game (app/tasks/stress_raindrop.py) -- kept for app/tasks/stress_mat.py, retained until PI sign-off (see README/plan history)
-  # Cross-participant high score for the raindrop game (app/webui/raindrop/),
-  # replacing the old MIST-style rigged leaderboard (Montreal Imaging Stress
-  # Task; Dedovic et al. 2005) -- that was bogus/deceptive feedback requiring
-  # IRB debrief disclosure; per PI request the redesign drops deception
-  # entirely. Score is a real running count of correct answers (no ceiling);
-  # this file just remembers the best score any participant has gotten.
-  # Path is relative to repo root, outside any per-session folder (already
-  # covered by the .gitignore `sessions/` rule) so it persists across the
-  # whole study, not per participant.
-  high_score_path: sessions/raindrop_high_scores.json
-  # Familiarization preview: a non-interactive demo (app/tasks/
-  # stress_raindrop.py's run_demo(), app/webui/raindrop/game.js's
-  # bootstrap.demo path) that auto-solves drops using tier 1's pacing, for
-  # this many seconds, so the participant watches the mechanic instead of
-  # playing a real (scored) round.
-  demo_duration_sec: 20
-  # Explicit trial sequence, in presentation order -- each entry is one tier id
-  # from `tiers` below, and each trial is one baseline block followed by one
-  # arithmetic block using that tier's question format (baseline_duration_sec/
-  # arithmetic_duration_sec above apply to every trial). Repeat an id to run a
-  # tier more than once (e.g. [1, 2, 3, 1, 2, 3] for two full passes); the
-  # number of trials the participant is told about before starting is just
-  # len(trial_order).
-  trial_order: [1, 2, 3]
-  tiers:
-    # all three tiers use the SAME arithmetic
-    # complexity -- all four operators, 2 single-digit operands each (e.g.
-    # "7 * 8", "6 / 2", "9 - 4") -- so difficulty comes ENTIRELY from time
-    # pressure (spawn_interval_sec = drops on screen at once;
-    # fall_duration_sec = time to answer before a drop is missed), same
-    # design philosophy as attention_highway_task's tiers, instead of also
-    # ramping operand count/digit count.
-    #
-    # fall_duration_sec is grounded in arithmetic chronometric research
-    # rather than guessed: adult mean RT to VERIFY a single-digit
-    # addition/subtraction fact is ~1.5s (SD ~0.4s, range ~0.9-2.9s;
-    # tablet-based fluency study, npj Science of Learning 2025). Adults
-    # solve single-digit multiplication almost purely via fact retrieval
-    # and verify it in under ~1s; division is mediated through reversed
-    # multiplication retrieval and self-reported as fact-retrieved far less
-    # often, so it runs slower (Jost et al. 2019, Frontiers in Human
-    # Neuroscience; Campbell & Xue, 2001). PRODUCING an answer from scratch
-    # (this task, not just verifying one) runs slower still -- a
-    # response-deadline study on addition production (LeFevre et al.,
-    # Memory & Cognition) used 750ms as an aggressively fast deadline and
-    # 2500ms as a relaxed one -- plus a small allowance here for keying 1-2
-    # digits on the on-screen keypad. tier_1's fall_duration_sec (6.0s)
-    # sits comfortably above that whole range so an average adult can
-    # solve almost anything without rushing; tier_3's (2.5s) sits at the
-    # tight end, close to typical production time for the slower
-    # operations (division, large products), so lapses/misses become
-    # common -- the panic-inducing point of this task.
+  baseline_mode: per_trial   # per_trial = fresh baseline+pause before every tier; `once` = single baseline, then tiers run back-to-back
+  hurry_up_threshold_fraction: 0.8  # unused by the raindrop game (stress_raindrop.py); kept for app/tasks/stress_mat.py
+  high_score_path: sessions/raindrop_high_scores.json   # cross-participant running high score, persists across the whole study
+  demo_duration_sec: 20   # familiarization preview: auto-solved demo using tier 1's pacing
+  trial_order: [1, 2, 3]   # tier sequence in presentation   order; repeat an id to run a tier more than once
+  tiers:   # difficulty comes entirely from time pressure -- arithmetic complexity is identical across all tiers
     - id: 1
       operators: ["+", "-", "*", "/"]
       num_operands: 2
-      max_digits: 1
-      time_per_question_sec: 6.0   # legacy field, kept only for the retired psychopy path (app/tasks/stress_mat.py) -- unused by the active raindrop game
-      spawn_interval_sec: 3.5
-      fall_duration_sec: 6.0
+      two_digit_first_operand_fraction: 0.65   # fraction of questions where the first operand is two-digit vs single-digit
+      spawn_interval_sec: 3.0   # gap between drop spawns -- lower = harder
+      fall_duration_sec: 3.0    # time to answer before a drop is missed -- lower = harder
     - id: 2
       operators: ["+", "-", "*", "/"]
       num_operands: 2
-      max_digits: 1
-      time_per_question_sec: 4.0
-      spawn_interval_sec: 2.2
-      fall_duration_sec: 4.0
+      two_digit_first_operand_fraction: 0.65
+      spawn_interval_sec: 2.5
+      fall_duration_sec: 2.7
     - id: 3
       operators: ["+", "-", "*", "/"]
       num_operands: 2
-      max_digits: 1
-      time_per_question_sec: 2.5
-      spawn_interval_sec: 1.3
-      fall_duration_sec: 2.5
+      two_digit_first_operand_fraction: 0.65
+      spawn_interval_sec: 2.0
+      fall_duration_sec: 2.4
   # Tier identity is never shown on screen -- logged to the event log only.
 
-attention_highway_task:
-  # Highway dodge game -- added alongside SART per PI discussion 2026-08-04
-  # (see README "Attention task (SART)" and app/tasks/attention_highway.py
-  # for the full rationale). Repurposed into the SECOND HALF of the stress
-  # task (after raindrop) per PI discussion 2026-08-04/2026-08-05, with the
-  # attention/focus slot in the flow taken over by attention_focus_task
-  # (Schulte table + Stroop test) below instead.
-  #
-  # nominal_difficulty (below, per tier), self_report, and the
-  # state_tick_hz/near_miss_window_sec/frame_drop_*/sync_checkpoint_* knobs
-  # at the bottom of this block. Speed is the experimenter-controlled
-  # induction; collisions/near-misses/RT are logged as raw behavioral
-  # telemetry, never as a stress label -- see app/tasks/attention_highway.py
-  # and app/webui/highway/game.js's module docstrings for the full
-  # reasoning.
-  #
-  # WIRED INTO session_shell.py's active flow as of 2026-08-05 -- runs
-  # immediately after raindrop within "TASK 3: STRESS" (see
-  # session_shell.py's run_highway_task, shell.js's main()). Still also
-  # runnable standalone via `python -m app.run_task --task highway`.
-  #
-  # Sized as the second half of "stress" (raindrop ~6 min + highway ~4 min
-  # = ~10 min combined, per PI budget discussion) -- 3 tiers x 80s
-  # duration_sec (240s) + baseline_duration_sec (5s) = 245s ~= 4 min. Needs
-  # trial_order to actually list all 3 tiers (see that field's own comment
-  # below for a bug this caught).
-  duration_min: 4
-  lanes: 4   # game.js guarantees at least one lane is always free of any live hazard -- see app/webui/highway/game.js's pickSpawnLane()
-  baseline_duration_sec: 5   # idle driving, no hazards -- physiological baseline, same role as stress_task's baseline block
-  # Familiarization preview: a non-interactive demo (app/tasks/
-  # attention_highway.py's run_demo(), app/webui/highway/game.js's
-  # bootstrap.demo path) that auto-dodges hazards, using tier 1's pacing,
-  # for this many seconds, so the participant watches the mechanic instead
-  # of playing a real (scored) round.
-  demo_duration_sec: 20
-  # Speed/difficulty ramp, per PI request 2026-08-04 -- starts easy and
-  # gets harder over the drive, like a classic road-crossing arcade game.
-  # Structured as discrete tiers (same pattern as stress_task's
-  # tiers/trial_order) rather than a smooth continuous ramp: a continuous
-  # ramp would confound "it got harder" with "attention lapsed" at every
-  # single instant, whereas each tier's own block_start/block_end keeps a
-  # known, constant-difficulty window in the event log -- so analysis can
-  # either look at the whole ramp, or isolate vigilance decrement
-  # (RT/collision drift WITHIN one tier) from the deliberate jump BETWEEN
-  # tiers. spawn_interval_range_sec = jittered gap between hazards (lower =
-  # more frequent = harder); fall_duration_sec = time a hazard takes to
-  # reach the player, i.e. the reaction window (lower = faster = harder).
-  # Neither is demo-scaled (see attention_highway.py) -- only duration_sec
-  # is, same reasoning stress_raindrop.py never scales its own tiers' pacing.
-  #
-  # BUGFIX 2026-08-05: was `[3]` (hardest tier only) -- contradicted this
-  # section's own "starts easy, gets harder" ramp design above, and meant
-  # the real highway duration was ~1.4 min (1 tier x 80s + 5s baseline), not
-  # the ~4 min documented everywhere else (session_config.yaml's
-  # duration_min, docs/session_overview_2026-08-05.md, this task's own
-  # familiarization message). Caught while wiring this into session_shell.py.
-  trial_order: [1, 2, 3]
+attention_highway_task:          
+  duration_min: 4   # second half of the stress task, runs right after raindrop within "TASK 3: STRESS"
+  lanes: 4   # game.js guarantees at least one lane is always free of any live hazard
+  baseline_duration_sec: 5   # idle driving, no hazards -- physiological baseline
+  demo_duration_sec: 20   # familiarization preview: auto-dodging demo using tier 1's pacing
+  trial_order: [1, 2, 3]   # tier sequence; starts easy and ramps harder
   tiers:
-    # nominal_difficulty: the experimenter-set induction level, logged
-    # verbatim on every event this tier produces (block_start/obstacle_spawn/
-    # state_tick) alongside -- never instead of -- condition_label/tier id.
-    # Equal to tier id today (3 tiers, 3 monotonic steps), but kept as its
-    # OWN field rather than reusing `id` so a future reorder/relabel of tiers
-    # can't silently change what "difficulty 2" means in already-collected
-    # data, and so it's unambiguous in the schema that this is the
-    # manipulated variable, not a measured one.
-    # concurrent_obstacles: FIXED at 3 across all tiers as of 2026-08-05 (was
-    # 1 -> 2 -> 3, ramping alongside spawn_interval/fall_duration) -- per PI
-    # request, so the only thing that varies tier-to-tier is TIME (how fast
-    # hazards come, how long you have to react), not also how many lanes
-    # demand attention at once. Keeping concurrent_obstacles constant
-    # isolates time as the single manipulated variable across tiers, instead
-    # of confounding two independently-varying difficulty axes. Still
-    # guaranteed-safe at 3 on a 5-lane road: app/webui/highway/game.js's
-    # pickSpawnLane() invariant (at least one lane always clear) applies
-    # across an entire wave, since each spawn call updates the live-obstacle
-    # set before the next one in the same wave is placed.
     - id: 1
       label: tier_1
-      nominal_difficulty: 1
-      duration_sec: 80
-      spawn_interval_range_sec: [1.0, 1.2]   # avg gap ~1.8s -- tightened again 2026-08-04, and re-tuned alongside tiers 2/3 so avg gap is now STRICTLY decreasing 1 -> 2 -> 3 (was non-monotonic before: tier 1's avg had briefly dipped below tier 2's)
-      fall_duration_sec: 2.0   # re-baselined 2026-08-06 off AASHTO's 2.5s unexpected-hazard perception-reaction time and PASAT's (Gronwall 1977) validated stress-pacing ISI levels -- was 4.5
-      concurrent_obstacles: 4
+      nominal_difficulty: 1   # experimenter-set induction level, logged verbatim on every event this tier produces
+      duration_sec: 60
+      spawn_interval_range_sec: [1.0, 1.2]   # jittered gap between hazards -- lower = harder
+      fall_duration_sec: 2.0   # reaction window before a hazard reaches the player -- lower = harder
+      concurrent_obstacles: 4   # fixed across all tiers -- only timing varies tier-to-tier, not obstacle count
     - id: 2
       label: tier_2
       nominal_difficulty: 2
-      duration_sec: 80
-      spawn_interval_range_sec: [0.7, 0.9]   # avg gap ~1.3s
-      fall_duration_sec: 1.5   # re-baselined 2026-08-06, tier_1 - 0.5s -- was 3.5
+      duration_sec: 60
+      spawn_interval_range_sec: [0.7, 0.9]
+      fall_duration_sec: 1.5
       concurrent_obstacles: 4
     - id: 3
       label: tier_3
       nominal_difficulty: 3
-      duration_sec: 80
-      spawn_interval_range_sec: [0.3, 0.5]   # avg gap ~0.8s
-      fall_duration_sec: 1.0   # re-baselined 2026-08-06, tier_2 - 0.5s -- was 1.5
+      duration_sec: 60
+      spawn_interval_range_sec: [0.3, 0.5]
+      fall_duration_sec: 1.0
       concurrent_obstacles: 4
-  # Anti-camping nudge: staying in one lane is
-  # otherwise a perfectly safe (if boring/inattentive) strategy given no
-  # permadeath and the guaranteed-safe-lane invariant above. Can't literally
-  # force a keypress, but once the participant has sat in the same lane for
-  # camp_grace_sec, the probability that the NEXT hazard spawns directly
-  # into their current lane ramps from 0 to camp_max_probability over the
-  # following camp_ramp_sec -- so camping stops being free and starts
-  # costing real collisions instead. See app/webui/highway/game.js's
-  # pickSpawnLane()/campNudgeProbability(). Not demo-scaled -- tied to real
-  # reaction time, same reasoning the tiers' own pacing isn't scaled either.
-  camp_grace_sec: 0.3     # tightened to "a sec or so" per feedback 2026-08-04, from 3s -- keeps the participant reacting instead of settling into one lane
-  camp_ramp_sec: 0.2    # fully ramped (i.e. next hazard guaranteed into their lane) by camp_grace_sec + camp_ramp_sec = ~1.5s of no lane change
+  camp_grace_sec: 0.3     # time sitting in one lane before the anti-camping hazard-nudge probability starts ramping
+  camp_ramp_sec: 0.2      # time after camp_grace_sec to reach camp_max_probability
   camp_max_probability: 1.0
 
-  # Block-level self-report -- asked after each driving block (never
-  # mid-drive), rendered in-webview by app/webui/shared/rating_widget.js
-  # (see app/tasks/attention_highway.py's HIGHWAY_RATING_PROMPTS for the
-  # actual prompt/endpoint wording). Empty/omitted `items` disables
-  # self-report entirely -- see _build_self_report_payload().
-  self_report:
-    # Simplified per playtesting feedback 2026-08-05 -- was all 8 of
-    # HIGHWAY_RATING_PROMPTS; trimmed to the 3 that matter most for a
-    # low-burden between-block check-in. The rest of HIGHWAY_RATING_PROMPTS
-    # is left in attention_highway.py in case a fuller post-hoc debrief
-    # questionnaire wants them later -- this is just what gets asked
-    # in-task.
+  self_report:   # post-block self-report; empty/omitted `items` disables it entirely
     items: [stress, workload, perceived_control, engagement, perceived_difficulty]
     scale_min: 1
     scale_max: 7
 
-  # Fixed-rate gameplay state stream (app/webui/highway/game.js's
-  # startStateTick()) -- 0 disables it. 10 Hz matches the low end of the
-  # 10-20 Hz range typical biosignal epoch alignment wants; raise toward 20
-  # if offline analysis needs finer-grained state resolution than that.
-  state_tick_hz: 10
-  # Rolling window (seconds) the state_tick's recent avoidance/collision
-  # rate and recent reaction time are computed over.
-  rolling_window_sec: 15
-  # An avoided obstacle counts as a near-miss if the participant's dodge
-  # left less than this many seconds of runway before the obstacle would
-  # have reached them (app/webui/highway/game.js's resolveObstacle()).
-  near_miss_window_sec: 0.3
-  # Frame-drop watchdog (app/webui/highway/game.js's
-  # installFrameDropWatchdog()): a rendered frame gap above this threshold
-  # gets logged as frame_drop_warning, debounced to at most one log per
-  # frame_drop_min_gap_sec so a bad patch of frames doesn't spam the log.
-  frame_drop_threshold_ms: 50
-  frame_drop_min_gap_sec: 0.5
-  # Clock-correspondence probes (app/webui/bridge.py's sync_checkpoint(),
-  # app/webui/highway/game.js's runSyncCheckpoints()) -- this many round
-  # trips, this far apart, at session start AND again at session end, so
-  # offline analysis can fit both an offset and a drift rate between the
-  # browser's clock and the host's clock instead of assuming one fixed
-  # offset held for the whole session.
-  sync_checkpoint_count: 3
+  state_tick_hz: 10   # fixed-rate gameplay state stream frequency; 0 disables it
+  rolling_window_sec: 15   # window over which recent avoidance/collision rate and reaction time are computed
+  near_miss_window_sec: 0.3   # a dodge counts as a near-miss if less than this many seconds of runway remained
+  frame_drop_threshold_ms: 50   # rendered frame gap above this logs a frame_drop_warning
+  frame_drop_min_gap_sec: 0.5   # debounce between frame_drop_warning logs
+  sync_checkpoint_count: 3   # clock-correspondence probes, run at session start and again at session end
   sync_checkpoint_gap_sec: 0.2
 
 attention_focus_task:
-  # Two selective-attention/interference-control games -- Schulte table and
-  # Stroop color-word test -- added per PI discussion 2026-08-04, taking
-  # over attention_highway_task's slot in app/tasks/session_shell.py's flow
-  # (see that section's comment for why highway itself is untouched, not
-  # deleted). Modeled on https://www.freefocusgames.com/games/schulte-table
-  # and .../stroop-effect-test, adapted for lab data collection: no
-  # difficulty tiers (per PI request 2026-08-04 -- these measure attention/
-  # focus under one fixed, comparable paradigm rather than a difficulty
-  # ramp, unlike stress_task/attention_highway_task), no artificial time
-  # pressure (Schulte is explicitly untimed -- completion time is the
-  # dependent measure, not a countdown to beat; Stroop is self-paced too, no
-  # response deadline, since reaction time itself is the dependent measure
-  # there). Every numeric knob below is still config-overridable so this can
-  # move to a tiered design later without a code change.
-  #
-  # Session structure: trials_per_game trials of EACH game (so
-  # 2 * trials_per_game total blocks), each trial = one baseline (fixation)
-  # + one game round. The across-trial ORDER (which game comes up in each
-  # slot) is shuffled once per session using the session rng (see
-  # app/tasks/attention_focus.py), so which game a participant sees at
-  # trial N isn't confounded with a fixed position in the sequence -- same
-  # reasoning the emotion task's clip order is randomized while clip
-  # SELECTION is fixed. Provenance of that shuffle stays with the one
-  # rng_seed already recorded in session_manifest.json.
-  #
-  # duration_min: bumped 3->4 trials/game 2026-08-05 per PI request (8 total
-  # Schulte+Stroop trials instead of 6) -- Schulte/Stroop are explicitly
-  # untimed by design (completion time/RT IS the dependent measure), so this
-  # is an ESTIMATE (~46s/trial: 15s baseline + ~31s avg game), same "don't
-  # budget participant-paced time precisely" treatment as emotion_task's
-  # ratings -- to be corrected against a real pilot run. SART (see
-  # sart_task below) is a SEPARATE task, run via its own standalone command
-  # per PI request 2026-08-05 -- NOT part of this task or its time budget
-  # (was briefly planned as a 3rd game sharing this slot; reverted -- see
-  # [[project_session_timing_budget_2026-08-05]]).
-  duration_min: 6
-  trials_per_game: 4
-  baseline_duration_sec: 15   # fixation before EVERY trial -- always "per_trial" style (see stress_task.baseline_mode), since these are short trials, not one continuous ramp
+  # Schulte table + Stroop color-word test -- untimed/self-paced, no difficulty tiers (see app/tasks/attention_focus.py).
+  duration_min: 6   # estimate: trials_per_game trials of each game, ~46s/trial (15s baseline + ~31s avg game)
+  trials_per_game: 3
+  baseline_duration_sec: 10   # fixation before every trial
   schulte:
-    grid_size: 5   # 5x5 grid, numbers 1-25 -- the classic Schulte table size (Schulte, 1933; matches freefocusgames' default)
-    # Classic paper Schulte tables show no on-screen reminder of which
-    # number comes next (the participant just counts up themselves) --
-    # showing one here trades a small deviation from that strict protocol
-    # for fewer "which number was I on" lookup errors that aren't actually
-    # part of the visual-search construct being measured. Set to false to
-    # match the strict classic version instead.
-    show_target_hint: true
-    # Familiarization preview (app/tasks/attention_focus.py's
-    # run_demo_schulte()): a smaller, non-scored grid that solves itself
-    # (app/webui/schulte/game.js's bootstrap.demo path) so the participant
-    # watches the click-in-order mechanic. A trial count wouldn't mean
-    # anything here (the task has no fixed duration) -- so unlike other
-    # tasks' demo_duration_sec, this is sized by grid dimension instead.
-    demo_grid_size: 3
+    grid_size: 5   # 5x5 grid, numbers 1-25 (classic Schulte table size)
+    show_target_hint: true   # shows which number comes next; set false for the strict classic (no on-screen hint) version
+    demo_grid_size: 3   # familiarization preview grid size (self-solving demo)
   stroop:
-    # 6-color set -- the classic Stroop, 1935 set is just the first 4
-    # (red/green/blue/yellow); purple/pink added per PI request 2026-08-04
-    # for a more attention-grabbing response layout. Worth flagging: purple
-    # vs. blue and pink vs. red are perceptually closer to each other than
-    # the original 4 are to one another, so accuracy/RT on THOSE specific
-    # pairs may not be directly comparable to the classic 4-color
-    # literature -- fine for this study's own within-task comparisons, just
-    # not a drop-in replication of the original norms. hex is what
-    # app/webui/stroop/game.js actually renders -- kept here (not hardcoded
-    # in JS) so the color set/appearance is config-editable without a code
-    # change.
     colors:
       - { name: red, hex: "#e74c3c" }
       - { name: green, hex: "#2ecc71" }
@@ -496,70 +149,24 @@ attention_focus_task:
       - { name: yellow, hex: "#f1c40f" }
       - { name: purple, hex: "#9b59b6" }
       - { name: pink, hex: "#ff69b4" }
-    # Fixed, predefined number of stimuli per Stroop trial-block, per PI
-    # request 2026-08-04 (not adaptive/open-ended like Schulte, since Stroop's
-    # dependent measures -- RT and accuracy -- need a known trial count to
-    # average over).
-    trials_per_block: 16
-    # fraction of trials_per_block that are congruent (word text == ink color); rest are incongruent. Order is shuffled, not blocked.
-    # 0.35 per PI request 2026-08-06 (was 0.5) -- targets ~65% incongruent.
-    # attention_focus.py's n_congruent = round(trials_per_block * congruent_fraction)
-    # -- with trials_per_block=16, round(16*0.35)=6 congruent / 10 incongruent
-    # (62.5% incongruent -- the closest achievable to 65% at 16 trials, since
-    # 16 isn't a multiple of 20; bump trials_per_block to a multiple of 20
-    # if you need an exact 65/35 split).
-    congruent_fraction: 0.35
+    trials_per_block: 20   # fixed number of stimuli per Stroop trial-block
+    congruent_fraction: 0.15   # fraction of trials where word text == ink color; rest incongruent, order shuffled
     isi_sec: 0.5   # blank inter-stimulus interval between one response and the next stimulus onset
-    demo_trials: 6   # familiarization preview trial count (app/tasks/attention_focus.py's run_demo_stroop()) -- auto-answered, same role as demo_grid_size above
+    demo_trials: 6   # familiarization preview trial count (auto-answered)
 
 sart_task:
-  # SART (Sustained Attention to Response Task, Robertson et al. 1997) --
-  # ported 2026-08-05 into app/tasks/attention_sart.py from the standalone
-  # tryout at C:\Users\UT_Wireless\Documents\attention-task-tryouts\sart_cstothart\
-  # (python_sart.py/sart_config.py, Cary Stothart, MIT license). Per PI
-  # request, this is a SEPARATE task -- run only via
-  # `python -m app.run_task --task sart`, deliberately NOT wired into
-  # session_shell.py/app/main.py's session flow (unlike Schulte/Stroop
-  # above), so its time is NOT part of session.total_duration_min or
-  # attention_focus_task's budget -- see [[project_attention_task_sart]] and
-  # [[project_session_timing_budget_2026-08-05]] for the history of that
-  # decision (it was briefly planned as a 3rd attention/focus game sharing
-  # that task's slot, then reverted).
-  #
-  # duration_min: fully deterministic (fixed 1.15s/trial SOA, unlike
-  # Schulte/Stroop) -- reps x 45 trials x 1.15s + 18 practice trials x
-  # 2.05s (practice includes accuracy feedback) + baseline_duration_sec.
-  # reps=3: 135 x 1.15s + 18 x 2.05s = 192.15s (~3.2 min) + 90s baseline =
-  # ~4.7 min total.
-  duration_min: 5
-  reps: 3   # each rep = the classic 45-trial sequence (9 numbers x 5 font sizes); python_sart.py's own default is 5, reduced here since this task no longer needs to fit inside attention_focus_task's slot -- 3 was just what that shared-slot math needed, kept as-is since it's already wired through app/tasks/attention_sart.py
-  omit_count: 3          # sart_config.py's OMIT_COUNT -- how many numbers (of 1-9) are randomly chosen as no-press targets each run. Set to null and use omit_num instead to hardcode specific number(s).
-  omit_num: 3            # sart_config.py's OMIT_NUM -- only used if omit_count is null
+  # SART (Sustained Attention to Response Task) -- separate task, run only via `python -m app.run_task --task sart`; not wired into the main session flow or its time budget.
+  duration_min: 4   # baseline (baseline_duration_sec) + practice (18 trials, ~2.05s/trial w/ feedback) + reps x 45 trials x 1.15s SOA; was 5 w/ reps=4, retimed 2026-08-12 per PI request (tone down reps to reduce participant burnout)
+  reps: 3   # each rep = the classic 45-trial sequence (9 numbers x 5 font sizes) -- lowered from 4 (2026-08-12, burnout concern)
+  omit_count: 3          # how many numbers (1-9) are randomly chosen as no-press targets each run; set null to use omit_num instead
+  omit_num: 3            # hardcoded no-press target number, only used if omit_count is null
   practice: true          # 18 practice trials w/ accuracy feedback before the real block
-  fixed_order: false      # sart_config.py's FIXED -- randomized (not 1,2,3...9,1,2,3...) presentation order
-  # Pre-task physiological baseline -- NOT in the original script at all,
-  # added per PI request 2026-08-05, same distributed-baseline treatment as
-  # every other task (see emotion_task.block_baseline,
-  # stress_task.baseline_duration_sec, attention_highway_task.baseline_duration_sec).
-  baseline_duration_sec: 90
+  fixed_order: false      # randomized (not sequential) presentation order
+  baseline_duration_sec: 30   # pre-task physiological baseline
 
 devices:
   mode: mock                      # mock | real — mock lets the app run with no hardware present
-  # skip_sync: added 2026-08-05 per PI workflow -- put the hardware on the
-  # participant, sync/verify it via the existing EXTERNAL scripts
-  # (hardware's own time-sync handshake + live-data verification, same ones
-  # already used for ear-EEG/watch bring-up) BEFORE starting this app, then
-  # set this true so app/main.py's own device_sync step (a second, separate
-  # BLE connection attempt) doesn't run at all -- avoids the likely conflict
-  # of two clients trying to hold a connection to the same BLE peripheral at
-  # once. The external script's own sync timestamp is what offline analysis
-  # uses to align device data with this app's session event log instead of
-  # this app's own device_sync_records (which will be empty when skipped --
-  # see the device_sync_skipped event in events.jsonl for confirmation this
-  # was intentional, not a silent failure). Overridable per-run via
-  # `--skip-device-sync` on both app/main.py and app/run_task.py; the CLI
-  # flag and this config value are OR'd together (either one skips it).
-  skip_sync: true
+  skip_sync: true   # skip this app's own BLE device_sync step when hardware was already synced/verified externally before starting; overridable via --skip-device-sync
   ear_eeg_out:
     enabled: true
     name_prefix: "ESP_SPP_SERVER"
@@ -576,13 +183,7 @@ devices:
     enabled: false                # integration method TBD — open item #1
     protocol: unknown
 
-# First-pass draft (Engineering_Document.md §3.3) -- core battery only.
-# Add items here (not in code) to extend it; each type is handled generically
-# by app/main.py's questionnaire runner. Types: choice/numeric/rating (one
-# screen each, unchanged), multi_rating (several rating rows sharing one
-# scale on one screen, e.g. STAI-6/PANAS), group (several mixed choice/text
-# fields on one screen, e.g. demographics). Any item/field can be disabled
-# without deleting it via `enabled: false`.
+# Each item type (choice/numeric/rating/multi_rating/group) is handled generically by app/main.py's questionnaire runner. Disable any item/field without deleting it via `enabled: false`.
 questionnaire:
   items:
     - id: age_range
@@ -590,13 +191,7 @@ questionnaire:
       prompt: "What is your age range?"
       options: ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
 
-    # Combined demographics screen (gender/education/native language) --
-    # grouped onto one fill-in-the-blanks screen instead of one screen per
-    # question, per PI request. NOTE: no single canonical gender-identity
-    # option list was found in the pre-trial-questionnaire literature search
-    # -- these are placeholders; swap in your IRB's standard demographics
-    # wording if it differs.
-    - id: demographics
+    - id: demographics   # combined gender/education/native-language screen
       type: group
       prompt: "A few quick demographic questions."
       fields:
@@ -633,9 +228,6 @@ questionnaire:
       type: choice
       prompt: "Have you had caffeine in the last 3 hours?"
       options: ["Yes", "No"]
-    # Added per research on standard EEG-study substance screening (alcohol
-    # 24h / nicotine are more common there than caffeine-only), but not yet
-    # turned on -- flip enabled: true when ready to use.
     - id: alcohol_last_24h
       type: choice
       prompt: "Have you consumed alcohol in the last 24 hours?"
@@ -647,12 +239,7 @@ questionnaire:
       options: ["Yes", "No"]
       enabled: false
 
-    # STAI-6 (Marteau & Bekker, 1992): validated 6-item short-form state
-    # anxiety scale -- replaces the old single ad-hoc stress_baseline rating.
-    # Disabled per PI request: 6 items x 4 response options each was judged
-    # too many questions/options to ask at this point in the session. Kept
-    # here (not deleted) so it can be flipped back on later if needed.
-    - id: stai6
+    - id: stai6   # STAI-6 (Marteau & Bekker, 1992): validated 6-item short-form state anxiety scale
       type: multi_rating
       enabled: true
       prompt: "For each statement, choose how you feel RIGHT NOW, at this moment."
@@ -674,10 +261,7 @@ questionnaire:
         - id: stai_worried
           prompt: "I am worried"
 
-    # PANAS short form (I-PANAS-SF; Thompson, 2007) -- replaces the old
-    # single ad-hoc mood_baseline rating with validated positive/negative
-    # affect items.
-    - id: panas
+    - id: panas   # PANAS short form (I-PANAS-SF; Thompson, 2007): positive/negative affect items
       type: multi_rating
       enabled: false
       prompt: "Indicate to what extent you feel this way RIGHT NOW, at this moment."
@@ -708,16 +292,4 @@ questionnaire:
           prompt: "Upset"
 
 logging:
-  # Where session_id folders (events.jsonl, session_manifest.json, etc.) get
-  # written -- app/main.py and app/run_task.py both resolve this the same way
-  # (REPO_ROOT / session_root / session_id). Relative paths (default) live
-  # under the repo; set an absolute Windows path with a drive letter (e.g.
-  # "D:/exg-data/sessions" or "D:\\exg-data\\sessions") to redirect ALL
-  # session output there instead -- pathlib's join discards REPO_ROOT
-  # whenever the right-hand side is already absolute, so no code change is
-  # needed for this. A drive-less absolute path (e.g. "/sessions") does NOT
-  # work as an override -- Windows resolves that relative to REPO_ROOT's own
-  # drive instead of replacing it, so it silently lands under REPO_ROOT
-  # anyway. No CLI override for this exists (unlike participant_id above) --
-  # edit this value directly.
-  session_root: "./sessions"
+  session_root: "./sessions"   # where session_id folders (events.jsonl, session_manifest.json, etc.) get written; set an absolute Windows path (with drive letter) to redirect elsewhere

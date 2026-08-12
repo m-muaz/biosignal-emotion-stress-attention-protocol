@@ -131,10 +131,36 @@
     if (name) el(name).classList.remove("hidden");
   }
 
+  // mm:ss, e.g. 75 -> "1:15". Baseline durations are configured in seconds
+  // (see session_config.yaml's emotion_task.block_baseline) but a bare
+  // seconds count is harder to read at a glance during a long baseline hold.
+  function formatCountdown(sec) {
+    const s = Math.max(0, Math.ceil(sec));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
   async function runFixation(durationSec, progressLabel) {
     showScreen("fixation-screen");
     el("fixation-progress-label").textContent = progressLabel || "";
-    await delayWithSkipKeys(durationSec * 1000);
+    // Subtle countdown under the cross -- these baseline holds run up to 45s
+    // with nothing else on screen, and participants had no feedback that
+    // anything was still happening/how much longer to hold still. Deliberately
+    // low-key (see .fixation-timer in style.css) so it informs without
+    // becoming a stressor in what's meant to be a calm physiological
+    // baseline.
+    const timerEl = el("fixation-timer");
+    const startTime = performance.now();
+    function tick() {
+      timerEl.textContent = formatCountdown(durationSec - (performance.now() - startTime) / 1000);
+    }
+    tick();
+    const interval = setInterval(tick, 250);
+    try {
+      await delayWithSkipKeys(durationSec * 1000);
+    } finally {
+      clearInterval(interval);
+      timerEl.textContent = "";
+    }
   }
 
   // Block-level physiological baseline periods -- per PI request 2026-08-05,

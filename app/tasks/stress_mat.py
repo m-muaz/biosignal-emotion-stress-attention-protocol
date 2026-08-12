@@ -51,9 +51,19 @@ def generate_question(tier_cfg: dict, rng) -> tuple[str, int]:
     """
     ops = tier_cfg["operators"]
     n = tier_cfg["num_operands"]
-    max_val = 10 ** tier_cfg["max_digits"] - 1
-
-    first = rng.randint(1, max_val)
+    # Per PI request 2026-08-06: the first term is two-digit (10-99) --
+    # everything after it is always single-digit (1-9), regardless of this
+    # knob. Per PI request 2026-08-10, the first term's width is now
+    # RANDOMIZED per question rather than always two-digit:
+    # two_digit_first_operand_fraction of questions get a two-digit first
+    # term, the rest get a single-digit one (1-9, same range as every other
+    # operand) -- a per-tier config knob (session_config.yaml's
+    # stress_task.tiers) so tiers could eventually use different splits,
+    # though every tier uses the SAME value today per PI request. Difficulty
+    # still comes entirely from spawn_interval_sec/fall_duration_sec (see
+    # stress_raindrop.py's module docstring), not from operand size.
+    two_digit_fraction = tier_cfg["two_digit_first_operand_fraction"]
+    first = rng.randint(10, 99) if rng.random() < two_digit_fraction else rng.randint(1, 9)
     tokens = [str(first)]
     value = first
     last_op = None  # operator behind the current last token; None = it's still just `first`
@@ -90,6 +100,21 @@ def generate_question(tier_cfg: dict, rng) -> tuple[str, int]:
                 remainder = value % divisor
                 if remainder != 0:
                     pad = divisor - remainder
+                    # Padding UP is the norm, but for the very first term
+                    # that would occasionally carry a two-digit first
+                    # operand to 100+ (e.g. 99 needing +1) -- pad DOWN to
+                    # the nearest lower multiple instead so it stays
+                    # two-digit, per PI request 2026-08-06. Since
+                    # 2026-08-10 the first term can ALSO be single-digit
+                    # (see two_digit_first_operand_fraction above), so the
+                    # same problem now exists one digit-width class down:
+                    # padding a single-digit first (e.g. 9) up could carry
+                    # it to 10+, silently converting it into what looks
+                    # like a two-digit-first question and skewing the
+                    # fraction that knob is supposed to control -- pad DOWN
+                    # there too, for the same reason.
+                    if last_op is None and ((value < 10 and value + pad >= 10) or (value >= 10 and value + pad > 99)):
+                        pad = -remainder
                     if not fold_pad(pad):
                         tokens += ["+", str(pad)]
                         value += pad
@@ -103,12 +128,12 @@ def generate_question(tier_cfg: dict, rng) -> tuple[str, int]:
             value *= operand
             last_op = "*"
         elif op == "+":
-            operand = rng.randint(1, max_val)
+            operand = rng.randint(1, 9)
             tokens += ["+", str(operand)]
             value += operand
             last_op = "+"
         else:  # "-"
-            operand = rng.randint(1, max_val)
+            operand = rng.randint(1, 9)
             tokens += ["-", str(operand)]
             value -= operand
             last_op = "-"
