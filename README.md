@@ -26,6 +26,38 @@ Full design writeup (sampling rates, sync formulas, resolution rules, known
 data-quality caveats): **`docs/Dataset_Sync_Design.md`**. Runnable example
 end-to-end on one participant: **`notebooks/dataset_walkthrough.ipynb`**.
 
+## Event window kinds
+
+`dataset/windows.py` extracts several kinds of window per task (`Window.window_type`):
+
+| `window_type` | meaning |
+|---|---|
+| `trial` | one fine-grained scored unit -- one arithmetic problem, one obstacle, one Stroop stimulus, one SART number, one emotion clip |
+| `block` | one uninterrupted run -- one raindrop/highway tier, one Schulte/Stroop repetition, SART's single continuous run (CONTAINS its `trial` windows) |
+| `baseline` | a physiological-baseline touchpoint |
+| `self_report` | a post-block subjective rating (highway only) |
+| `questionnaire` | one preparation-phase questionnaire item response |
+| `transition` | an auto-detected gap not covered by any other window (inter-task breaks, the pre-SART gap, etc.) |
+
+**Which one is "a trial"?** For most tasks, `trial` is too fine-grained to
+be a useful atomic unit on its own -- one arithmetic problem or one
+obstacle alone doesn't carry much signal. `RECOMMENDED_TRIAL_WINDOW_TYPE`
+in `dataset/windows.py` is the single source of truth for what to treat as
+one trial per task:
+
+| task | recommended unit | why |
+|---|---|---|
+| `emotion` | `trial` (one clip) | a clip has no finer natural sub-event to fall back to |
+| `stress` (raindrop) | `block` (one tier) | one arithmetic problem alone is too short a signal |
+| `attention_highway` | `block` (one tier) | one obstacle alone is too short a signal |
+| `attention_focus_schulte` | `block` (one grid solve) | Schulte has no per-cell trial_index at all |
+| `attention_focus_stroop` | `block` (one 20-stimulus repetition) | one stimulus alone is too short a signal |
+| `sart` | `block` (the single continuous run) | SART has no tiers/repetitions -- its whole run already is one uninterrupted trial |
+
+The finer `trial` windows are still extracted for every task, for anyone
+who wants sub-trial-level analysis later (e.g. per-obstacle reaction time)
+-- they're just not the default answer to "what is a trial".
+
 ## Quick start
 
 ```bash
