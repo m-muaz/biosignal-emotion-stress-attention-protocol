@@ -1,0 +1,47 @@
+# Documented manual fixes for participants whose collected data needed a
+# human decision the automatic resolver can't make on its own. Every entry
+# must carry a `reason` -- these are audit trail, not just config.
+#
+# Naming-convention drift (data-collection-logs vs data_collection_logs,
+# OPTED_OUT vs OPTED_out, etc.) is intentionally NOT handled here -- the
+# session resolver globs case-insensitively / matches both spellings
+# directly, since that's a uniform rule, not a per-participant judgment call.
+
+participants:
+  P006:
+    wristband:
+      use_session: 2
+      reason: >
+        Session 1 was a short/aborted attempt. Participant folder has
+        wristband/notes.txt.txt: "Use Session 2 data; that is synced with
+        computer timestamp." Session 2's meta-S000002.csv has a valid sync
+        anchor -- normal forward sync applies, just pointed at session 2.
+
+  P009:
+    wristband:
+      use_session: 2
+      reason: >
+        Session 1 was a short/aborted attempt (same pattern as P006); session
+        2 is the full recording. See sync_override.reason below for why
+        session 2 also needs the backward end-anchor.
+      sync_override:
+        mode: end_anchor
+        reference:
+          source: events_jsonl
+          session_dir_glob: "*_sart_*"
+          event_type: session_end
+        reason: >
+          meta-S000002.csv has a header row but zero data rows -- SYNC_MS
+          never reached the device. notes_for_wristband.txt.txt: "the
+          wristband was turned off moments after the last task was
+          finished, so we can use that last timestamp and work backwards."
+          SART is this participant's last task, so its `session_end` event
+          (~2.5s after `task_end`) stands in for "wristband about to be
+          turned off." Same single-point linear offset as the forward case,
+          just anchored backward from each modality file's OWN last
+          device_us row (not one shared value -- the 6 files' last rows
+          land at slightly different device_us just from their own sample
+          cadence, e.g. mlx/bme @1Hz vs ppg/imu/gsr @200Hz).
+          Caveat: single-point, no drift correction, unknown slack between
+          session_end and the actual power-off ("a few moments" -- not
+          exact). Marked reduced-confidence in sync_report.json.
