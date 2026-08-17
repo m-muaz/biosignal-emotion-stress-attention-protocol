@@ -45,6 +45,17 @@
   let lastLaneChangeTime = 0; // performance.now() timestamp -- drives the anti-camping nudge
   let avoided = 0;
   let collisions = 0;
+  // Where (as a % of #road's height) a falling obstacle's CENTER needs to
+  // land to actually visually reach #player-car -- recomputed from the real
+  // rendered layout (see updateObstacleEndTopPct()) rather than a guessed
+  // constant, since collision is judged the instant an obstacle's fall timer
+  // elapses (obstacle.lane === playerLane in resolveObstacle()), not by any
+  // on-screen overlap check. A guessed endpoint that lands lower than the
+  // car's actual position meant a hazard could be logged as a collision (or
+  // avoided) well after it had visually passed the car on screen (bug
+  // reported by a participant 2026-08-13). 98 is only the pre-layout
+  // fallback, overwritten before any obstacle ever spawns.
+  let obstacleEndTopPct = 98;
   const liveObstacles = new Map(); // id -> { el, lane, spawnTime, blockIndex, conditionLabel, trialIndex, onResolved, rafId, respondedAt }
   let obstacleIdCounter = 0;
   let quitting = false;
@@ -86,6 +97,21 @@
 
   function laneCenterPct(lane) {
     return ((lane + 0.5) / lanes) * 100;
+  }
+
+  // Measures the real, currently-rendered gap between #road's top and
+  // #player-car's vertical center, as a % of #road's height -- this is what
+  // spawnObstacle()'s fall animation now targets, instead of a hardcoded
+  // guess, so "the fall timer elapsed" and "the hazard visually reached the
+  // car" are the same moment regardless of window size/DPI. Only meaningful
+  // once #game-screen is actually visible (getBoundingClientRect returns a
+  // real height then); called at the start of every driving block, where
+  // that's guaranteed true.
+  function updateObstacleEndTopPct() {
+    const road = el("road").getBoundingClientRect();
+    const car = el("player-car").getBoundingClientRect();
+    if (!road.height) return; // not laid out yet -- keep the previous/fallback value
+    obstacleEndTopPct = ((car.top + car.height / 2 - road.top) / road.height) * 100;
   }
 
   async function main() {
@@ -279,6 +305,7 @@
     el("obstacle-field").innerHTML = "";
     liveObstacles.forEach((o) => cancelAnimationFrame(o.rafId));
     liveObstacles.clear();
+    updateObstacleEndTopPct(); // road/car are now actually visible and laid out
 
     const nominalDifficulty = tier.nominal_difficulty ?? null;
     logEvent("block_start", {
@@ -299,23 +326,45 @@
     let spawnTimer = null;
 
     // Second difficulty axis (per playtesting feedback 2026-08-05): a wave
-    // spawns concurrentObstacles hazards together, in different lanes,
-    // instead of always one at a time -- raises how many lanes demand
-    // attention AT ONCE, independent of how fast any single hazard
-    // approaches. Still safe: pickSpawnLane()'s guaranteed-clear-lane
-    // invariant holds across the whole wave, since each call inside the
-    // loop below updates liveObstacles before the next call in the SAME
-    // wave runs, so a wave can never fill more than lanes-1 lanes.
-    const concurrentObstacles = tier.concurrent_obstacles ?? 1;
+    // spawns SEVERAL hazards together, in different lanes, instead of
+    // always one at a time -- raises how many lanes demand attention AT
+    // ONCE, independent of how fast any single hazard approaches. Still
+    // safe: pickSpawnLane()'s guaranteed-clear-lane invariant holds across
+    // the whole wave, since each call inside the loop below updates
+    // liveObstacles before the next call in the SAME wave runs, so a wave
+    // can never fill more than lanes-1 lanes.
+    //
+    // concurrent_obstacles in the config is a CAP, not a fixed count: every
+    // wave always spawning exactly that many read as suspiciously uniform/
+    // predictable (participant feedback 2026-08-13), so each wave now rolls
+    // its own size, from 1 up to the cap.
+    const concurrentObstaclesMax = tier.concurrent_obstacles ?? 1;
     let waveIndex = 0;
 
     function scheduleNext() {
       const gapSec = minGapSec + Math.random() * (maxGapSec - minGapSec);
       spawnTimer = setTimeout(() => {
         const wave = waveIndex++;
-        for (let i = 0; i < concurrentObstacles; i++) {
-          spawnObstacle(blockIndex, tier.label, trialIndex++, fallMs, autoDodge, onResolved, nominalDifficulty, wave, concurrentObstacles);
+        const waveSize = 1 + Math.floor(Math.random() * concurrentObstaclesMax);
+        const lanesUsedThisWave = new Set();
+        const picks = [];
+        for (let i = 0; i < waveSize; i++) {
+          const picked = pickSpawnLane(lanesUsedThisWave);
+          // null means pickSpawnLane deliberately skipped this slot (see its
+          // comment) rather than force another duplicate -- no obstacle, no
+          // trial, for this particular slot.
+          if (!picked) continue;
+          lanesUsedThisWave.add(picked.lane);
+          picks.push(picked);
         }
+        // spawn_wave_size passed to spawnObstacle() below is picks.length --
+        // the ACTUAL number of hazards this wave produced (after both the
+        // random waveSize roll and any pickSpawnLane() skips), not the
+        // tier's static cap, so the logged wave size always matches what a
+        // participant actually saw on screen.
+        picks.forEach((picked) => {
+          spawnObstacle(blockIndex, tier.label, trialIndex++, fallMs, autoDodge, onResolved, nominalDifficulty, wave, picks.length, picked);
+        });
         scheduleNext();
       }, gapSec * 1000);
     }
@@ -431,25 +480,84 @@
   // clear lane -- so the count of simultaneously-threatened lanes can never
   // reach `lanes`, and the participant can never be boxed in with no move
   // that avoids every live hazard. The anti-camping nudge is applied FIRST,
-  // but only takes effect if it doesn't break that same guarantee (i.e. the
-  // participant's lane is already threatened, or at least one OTHER lane
-  // would still be left clear) -- so nudging can never itself create an
-  // unavoidable collision.
-  function pickSpawnLane() {
+  // but only takes effect if the participant's lane isn't already
+  // threatened AND at least one OTHER lane would still be left clear -- so
+  // nudging can never itself create an unavoidable collision, and never
+  // stacks a redundant second hazard onto a lane it already succeeded in
+  // threatening.
+  // `lanesUsedThisWave` is the set of lanes already assigned to an EARLIER
+  // obstacle in the SAME wave (see scheduleNext()) -- distinct from
+  // `occupied`, which also includes still-live hazards left over from
+  // previous, overlapping waves (spawn_interval_range_sec can be shorter
+  // than fall_duration_sec, so waves stack up). Two obstacles landing in the
+  // same lane from DIFFERENT waves are visually distinguishable (different
+  // depths on screen, staggered arrival) and are a deliberate difficulty
+  // knob; two obstacles landing in the same lane from the SAME wave share
+  // an identical spawn/fall time and render as one indistinguishable
+  // hazard, so those get avoided wherever possible below.
+  //
+  // Returns null when this wave slot is deliberately skipped rather than
+  // spawning anything -- see the "permanently safe lane" fix below.
+  function pickSpawnLane(lanesUsedThisWave) {
     const occupied = new Set([...liveObstacles.values()].map((o) => o.lane));
-    const nudged = Math.random() < campNudgeProbability()
-      && (occupied.has(playerLane) || occupied.size < lanes - 1);
-    if (nudged) return { lane: playerLane, nudged: true };
+    // Don't nudge into a lane that's already threatened (by an earlier pick
+    // in this same wave, or a still-live hazard from a prior wave) --
+    // camp_grace_sec/camp_ramp_sec/camp_max_probability are untouched
+    // (participant-tuned, per feedback 2026-08-13), but a hazard already
+    // sitting in the player's lane means the nudge has already done its
+    // job; rolling it again just piles a second, perfectly-overlapping
+    // obstacle onto the same lane and double-scores it (same duplicate-
+    // scoring bug as the branches below, just via the nudge path -- this
+    // was showing up on nearly every wave once concurrent_obstacles>1,
+    // since all of a wave's picks land in the same instant with no chance
+    // for the participant to move in between).
+    const wantsNudge = !occupied.has(playerLane) && Math.random() < campNudgeProbability();
+    if (wantsNudge && occupied.size < lanes - 1) return { lane: playerLane, nudged: true };
     if (occupied.size >= lanes - 1) {
-      const candidates = [...occupied];
-      return { lane: candidates[Math.floor(Math.random() * candidates.length)], nudged: false };
+      // Every tier spawns hazards faster than they fall (spawn_interval <
+      // fall_duration -- the "concurrent hazards" difficulty axis), so
+      // occupied.size reaches lanes-1 almost immediately and then NEVER
+      // drops again for the rest of the block -- every following wave just
+      // keeps refilling the same lanes-1 lanes below via the `pool` pick.
+      // Left unchecked, that permanently locks in whichever lane happened
+      // to be spared during the very first wave as "the safe lane" -- a
+      // participant who finds it and camps there can sit out an entire
+      // block untouched, since wantsNudge above can never fire once
+      // occupied.size stops dipping below lanes-1 (bug reported by a
+      // participant 2026-08-13). If the participant HAS been camping long
+      // enough that the nudge wants to fire but can't (every other lane is
+      // currently live), skip refilling this slot instead of forcing
+      // another duplicate -- letting one of those lanes drain naturally
+      // brings occupied.size back below lanes-1 within a wave or two, at
+      // which point wantsNudge (still being rolled every pick while camp
+      // probability stays elevated) finally lands the hazard in the lane
+      // the participant is actually sitting in, instead of the "safe" lane
+      // being permanent for the rest of the block.
+      if (wantsNudge) return null;
+      // Prefer doubling up on a lane from an OLDER, already-live wave over
+      // one just claimed earlier in THIS wave -- the former stays visually
+      // distinguishable (staggered depth), the latter would be a second,
+      // perfectly-overlapping obstacle indistinguishable from the first.
+      const candidates = [...occupied].filter((l) => !lanesUsedThisWave.has(l));
+      const pool = candidates.length ? candidates : [...occupied];
+      return { lane: pool[Math.floor(Math.random() * pool.length)], nudged: false };
     }
-    return { lane: Math.floor(Math.random() * lanes), nudged: false };
+    // Pick only among lanes with no live hazard yet -- picking from ALL
+    // lanes here (including already-occupied ones) would let two obstacles
+    // land in the same lane purely by chance whenever a clear lane was
+    // available, silently doubling up what the participant sees as one
+    // hazard into two independently-scored avoided/collision trials (bug
+    // reported by a participant 2026-08-13). Only the forced branch above
+    // (every other lane already taken) is allowed to double up, since that
+    // one is unavoidable given the guaranteed-clear-lane invariant.
+    const free = [];
+    for (let l = 0; l < lanes; l++) if (!occupied.has(l)) free.push(l);
+    return { lane: free[Math.floor(Math.random() * free.length)], nudged: false };
   }
 
-  function spawnObstacle(blockIndex, conditionLabel, trialIndex, fallMs, autoDodge, onResolved, nominalDifficulty, spawnWaveIndex, spawnWaveSize) {
+  function spawnObstacle(blockIndex, conditionLabel, trialIndex, fallMs, autoDodge, onResolved, nominalDifficulty, spawnWaveIndex, spawnWaveSize, picked) {
     const id = ++obstacleIdCounter;
-    const { lane, nudged } = pickSpawnLane();
+    const { lane, nudged } = picked;
     const wrap = document.createElement("div");
     wrap.className = "obstacle";
     wrap.textContent = "🚧";
@@ -486,16 +594,34 @@
         if (!liveObstacles.has(id)) return;
         for (let candidate = 0; candidate < lanes; candidate++) {
           const threatened = [...liveObstacles.values()].some((o) => o.lane === candidate);
-          if (!threatened) { setPlayerLane(candidate, true); break; }
+          if (!threatened) {
+            // Only a REAL move resets the anti-camping clock (setPlayerLane
+            // does that whenever animate=true, regardless of whether `lane`
+            // actually changed -- fine for the real participant's dodge key,
+            // which only ever calls it with a genuinely different lane, but
+            // this loop picks the lowest-index clear lane every time even
+            // when that's the lane the car is already sitting in). Without
+            // this guard the demo car "re-confirms" its own lane on almost
+            // every wave, continually resetting the clock so it never
+            // actually looks like it's camping -- and the anti-camping
+            // nudge (camp_grace_sec/camp_ramp_sec) then never gets a chance
+            // to fire, so the demo never shows a hazard spawning directly
+            // into the lane the car has genuinely been sitting in (bug
+            // reported by the user 2026-08-13, seen as "obstacle patterns
+            // look deterministic/predictable" in demo mode).
+            if (candidate !== playerLane) setPlayerLane(candidate, true);
+            break;
+          }
         }
       }, fallMs * 0.4);
     }
 
     const start = performance.now();
+    const startTopPct = -10;
     function step(now) {
       if (!liveObstacles.has(id)) return; // already resolved
       const t = Math.min(1, (now - start) / fallMs);
-      wrap.style.top = `${-10 + t * 108}%`;
+      wrap.style.top = `${startTopPct + t * (obstacleEndTopPct - startTopPct)}%`;
       if (t >= 1) resolveObstacle(id);
       else obstacle.rafId = requestAnimationFrame(step);
     }

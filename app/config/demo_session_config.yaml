@@ -87,7 +87,7 @@ stress_task:
       fall_duration_sec: 2.4
   # Tier identity is never shown on screen -- logged to the event log only.
 
-attention_highway_task:          
+attention_highway_task:
   duration_min: 4   # second half of the stress task, runs right after raindrop within "TASK 3: STRESS"
   lanes: 4   # game.js guarantees at least one lane is always free of any live hazard
   baseline_duration_sec: 5   # idle driving, no hazards -- physiological baseline
@@ -200,7 +200,7 @@ questionnaire:
     - id: age_range
       type: choice
       prompt: "What is your age range?"
-      options: ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
+      options: ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
 
     - id: demographics   # combined gender/education/native-language screen
       type: group
@@ -303,4 +303,4 @@ questionnaire:
           prompt: "Upset"
 
 logging:
-  session_root: "./sessions"   # where session_id folders (events.jsonl, session_manifest.json, etc.) get written; set an absolute Windows path (with drive letter) to redirect elsewhere
+  session_root: "./demo_sessions"   # DEMO CONFIG: separate from real participant data in ./sessions; where session_id folders (events.jsonl, session_manifest.json, etc.) get written; set an absolute Windows path (with drive letter) to redirect elsewhere
