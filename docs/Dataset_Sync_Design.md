@@ -8,7 +8,7 @@ event-windowed PyTorch-compatible dataloader on top. Code lives in
 keep it in sync with `dataset/overrides.yaml` when a new participant needs
 a documented manual fix.
 
-## 0. Source scripts (ground truth for everything below)
+<!-- ## 0. Source scripts (ground truth for everything below)
 
 - Ear-EEG / in-ear-EEG sync + firmware: `ADS1299_BLE_main` (out-ear),
   `ADS1299_BLE-main-gaoteng` (in-ear) -- host side:
@@ -24,7 +24,7 @@ a documented manual fix.
   is NOT what was actually used to sync real sessions -- confirmed by
   `events.jsonl`'s `device_sync_skipped` event
   (`{"reason": "devices pre-synced/verified via external scripts before this
-  app started"}`). The three scripts above are the real ground truth.
+  app started"}`). The three scripts above are the real ground truth. -->
 
 ## 1. Confirmed sampling rates & formats
 
@@ -42,12 +42,12 @@ a documented manual fix.
 | `wristband/mag-S*.csv` | BMM350 | 100 Hz | CSV |
 | `wristband/mlx-S*.csv`, `bme-S*.csv` | IR temp, env | 1 Hz each | CSV |
 | `polar-h10/*_polar_ecg.csv` | H10 ECG | 130 Hz (fixed by Polar, not configurable) | CSV |
-| `polar-h10/*_polar_acc.csv` | H10 accel | 200 Hz (this rig's chosen setting) | CSV |
+| `polar-h10/*_polar_acc.csv` | H10 accel | 200 Hz (chosen setting) | CSV |
 | `data_collection_logs/events.jsonl` | task/event log | event-driven | JSONL, already host UTC |
 
-Polar H10 is **not** 250 Hz (confirmed via Polar's own SDK docs, GitHub SDK
+<!-- Polar H10 is **not** 250 Hz (confirmed via Polar's own SDK docs, GitHub SDK
 issues, and this rig's own `pmd_protocol.py`: `ECG_SAMPLE_RATE_HZ = 130`,
-`ACC_SAMPLE_RATE_HZ = 200`).
+`ACC_SAMPLE_RATE_HZ = 200`). -->
 
 ## 2. Sync anchor formulas (per `dataset/sync.py`)
 
