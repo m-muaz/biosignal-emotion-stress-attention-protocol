@@ -7,6 +7,59 @@ synced dataset, and provides an event-windowed dataloader for DL/ML use.
 This branch is self-contained: it holds only the data-processing pipeline,
 not the data-collection application that produced the raw recordings.
 
+## The data collection protocol (for context)
+
+Each participant wears the ear-EEG (mandatory) + an optional second
+in-ear-EEG + a wristband + a Polar H10 chest strap, all recording
+continuously through the whole session. Devices are synced to the host
+clock right before recording starts (see `docs/Dataset_Sync_Design.md`).
+A session runs through these tasks in order, in one continuous app; SART
+runs separately afterward, as its own standalone program.
+
+- **`preparation`** -- consent screen, then a questionnaire (demographics,
+  handedness, sleep/caffeine, a 6-item state-anxiety scale). One
+  `questionnaire`-window per item (its answer + self-timed response time).
+- *(optional familiarization: a short practice run of each task below, not
+  part of the scored dataset)*
+- **`emotion`** -- participant watches short video clips (positive/
+  negative/neutral, ~3 blocks), rating each afterward on valence, arousal,
+  liking, and a forced-choice emotion pick. Baseline touchpoints (start/
+  mid/end) bracket each block. One `trial` window per clip (+ its
+  ratings), plus `baseline` windows.
+- *break*
+- **`stress`** (mental arithmetic, "raindrop") -- arithmetic problems fall
+  down the screen like raindrops; the participant types the answer before
+  it reaches the bottom, across 3 increasingly time-pressured tiers, each
+  with its own baseline and a short pause between tiers. One `trial`
+  window per problem, one `block` window per tier (accuracy), plus
+  baselines.
+- **`attention_highway`** (no break before this -- same "stress" task,
+  second half) -- a lane-based driving game; hazards appear and the
+  participant switches lanes to avoid them, across 3 tiers of increasing
+  difficulty, with one baseline before the first tier and a subjective
+  self-report (stress/workload/control/engagement/difficulty) after each
+  tier. One `trial` window per obstacle (avoided/collision/reaction time),
+  one `block` window per tier, plus baseline/`self_report` windows.
+- *break*
+- **`attention_focus_schulte`** / **`attention_focus_stroop`** -- 3
+  repetitions each, in randomized/interleaved order, each preceded by its
+  own baseline:
+  - *Schulte table*: find numbers 1-25 in order on a 5x5 grid as fast as
+    possible. One `block` window per repetition (completion time,
+    misclicks).
+  - *Stroop test*: name the ink color of a color word, ignoring the word
+    itself (20 stimuli/repetition). One `trial` window per stimulus
+    (word, ink color, congruent, response, rt), one `block` window per
+    repetition (accuracy, mean rt).
+- **debrief** -- closing message, end of the main session.
+
+**`sart`** (run separately, its own program, sometime after the main
+session): Sustained Attention to Response Task -- digits 1-9 flash one at
+a time; the participant presses a key for every digit except a few
+designated "no-go" numbers. One continuous ~135-trial run after a
+baseline, no tiers -- so its whole run already is one `block` window,
+with one `trial` window per digit (responded/accuracy/rt).
+
 ## What it does
 
 1. **Resolve** (`dataset/session_resolver.py`) -- per participant, finds the
