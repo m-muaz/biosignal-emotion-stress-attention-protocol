@@ -22,8 +22,8 @@ runs separately afterward, as its own standalone program.
 - *(optional familiarization: a short practice run of each task below, not
   part of the scored dataset)*
 - **`emotion`** -- participant watches short video clips (positive/
-  negative/neutral, ~3 blocks), rating each afterward on valence, arousal,
-  liking, and a forced-choice emotion pick. Baseline touchpoints (start/
+  negative/neutral, ~3 blocks (10 videos total = 2x 3 videos/block + 1x 4 videos/block)), answers emotion choice pick (Positive/Negative/Neutral), and rating each afterward on valence ([Valence (Wikipedia)](https://en.wikipedia.org/wiki/Valence_(psychology))), arousal,
+  liking. Baseline touchpoints (start/
   mid/end) bracket each block. One `trial` window per clip (+ its
   ratings), plus `baseline` windows.
 - *break*
@@ -81,35 +81,52 @@ end-to-end on one participant: **`notebooks/dataset_walkthrough.ipynb`**.
 
 ## Event window kinds
 
-`dataset/windows.py` extracts several kinds of window per task (`Window.window_type`):
+Every recording gets cut up into small time segments ("windows"), each
+labeled with what was happening during it. There are two levels of segment
+for how well someone did on a task, plus a few special ones:
 
-| `window_type` | meaning |
-|---|---|
-| `trial` | one fine-grained scored unit -- one arithmetic problem, one obstacle, one Stroop stimulus, one SART number, one emotion clip |
-| `block` | one uninterrupted run -- one raindrop/highway tier, one Schulte/Stroop repetition, SART's single continuous run (CONTAINS its `trial` windows) |
-| `baseline` | a physiological-baseline touchpoint |
-| `self_report` | a post-block subjective rating (highway only) |
-| `questionnaire` | one preparation-phase questionnaire item response |
-| `transition` | an auto-detected gap not covered by any other window (inter-task breaks, the pre-SART gap, etc.) |
+- **`trial`** -- the smallest single thing that happened: one math problem,
+  one obstacle on the highway, one word shown in the Stroop test, one
+  number flashed in SART, one video clip watched.
+- **`block`** -- one complete, uninterrupted round of the task, start to
+  finish (e.g. all the obstacles in one highway run, all 20 Stroop words
+  in one sitting, the whole SART run). A block is made of many trials
+  back to back.
+- **`baseline`** -- a quiet moment with no task happening, so we know what
+  "resting" looks like for that participant.
+- **`self_report`** -- the participant rating how stressed/engaged/etc.
+  they felt, right after a block (highway only).
+- **`questionnaire`** -- one answer to one background/mood question, asked
+  before any task starts.
+- **`transition`** -- any other stretch of time that isn't part of a task
+  (breaks, waiting for the next screen, etc.) -- found automatically, so
+  nothing is left unlabeled.
 
-**Which one is "a trial"?** For most tasks, `trial` is too fine-grained to
-be a useful atomic unit on its own -- one arithmetic problem or one
-obstacle alone doesn't carry much signal. `RECOMMENDED_TRIAL_WINDOW_TYPE`
-in `dataset/windows.py` is the single source of truth for what to treat as
-one trial per task:
+### Which one should I actually treat as "one trial"?
 
-| task | recommended unit | why |
+A single math problem or a single highway obstacle only lasts a couple of
+seconds -- too short to see much of a pattern in slower biosignals like
+heart rate or skin conductance. So for most tasks, treat one whole
+**block** (the complete round) as "one trial" for analysis, not the
+individual events inside it. Emotion is the one exception: each video clip
+is already a natural, self-contained unit, so there a `trial` (one clip) is
+exactly what you want.
+
+`RECOMMENDED_TRIAL_WINDOW_TYPE` in `dataset/windows.py` gives you this
+answer directly:
+
+| Task | Use this as "one trial" | In plain terms |
 |---|---|---|
-| `emotion` | `trial` (one clip) | a clip has no finer natural sub-event to fall back to |
-| `stress` (raindrop) | `block` (one tier) | one arithmetic problem alone is too short a signal |
-| `attention_highway` | `block` (one tier) | one obstacle alone is too short a signal |
-| `attention_focus_schulte` | `block` (one grid solve) | Schulte has no per-cell trial_index at all |
-| `attention_focus_stroop` | `block` (one 20-stimulus repetition) | one stimulus alone is too short a signal |
-| `sart` | `block` (the single continuous run) | SART has no tiers/repetitions -- its whole run already is one uninterrupted trial |
+| `emotion` | `trial` (one clip) | one video clip watched + rated |
+| `stress` (raindrop math) | `block` (one round) | one full ~60s round of falling math problems |
+| `attention_highway` | `block` (one round) | one full ~60s round of driving/dodging |
+| `attention_focus_schulte` | `block` (one round) | one full attempt at finding all 25 numbers |
+| `attention_focus_stroop` | `block` (one round) | one full set of 20 color-word stimuli |
+| `sart` | `block` (the whole run) | the entire ~135-number run -- there's only one round to begin with |
 
-The finer `trial` windows are still extracted for every task, for anyone
-who wants sub-trial-level analysis later (e.g. per-obstacle reaction time)
--- they're just not the default answer to "what is a trial".
+The individual `trial` windows are still there if you ever want to zoom
+into one specific event (e.g. reaction time to one obstacle) -- they're
+just not the recommended starting point.
 
 ## Quick start
 
