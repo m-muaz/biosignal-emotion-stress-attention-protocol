@@ -143,6 +143,22 @@ timestamp ("log-start reference").
   `data-collection-logs`, `OPTED_OUT` vs `OPTED_out`, upper/lowercase
   `.bin`/`.BIN`) is handled by case-insensitive globbing everywhere, not by
   per-participant overrides -- it's a uniform rule, not a judgment call.
+- **Session-subdir naming, 3rd variant (found 2026-08-17, P010-P012)**: most
+  participants' session dirs are prefixed with their own folder name
+  (`part-P007_<ts>` / `part-P007_sart_<ts>`), but P010-P012 instead prefix
+  with the participant's own first name (`zijian_<ts>` /
+  `zijian_sart_<ts>`) -- exactly the "3rd naming variant" this doc
+  anticipated (§6, old note). `session_resolver.py`'s
+  `_find_session_subdirs` now matches structurally instead of hardcoding a
+  prefix: any dir ending in `_sart_<digits>` is the SART sub-session; any
+  OTHER dir ending in `_<digits>` is a main-session candidate -- the
+  original `part-<ID>_...` convention is just a special case of "any
+  prefix", so this covers both without a per-participant override. Fixed
+  as part of building the npy export (§8) against all 12 real participants;
+  before the fix, P010-P012 silently got zero events/windows (`build_dataset`
+  "succeeded" with 9 streams written but no `events.parquet` at all --
+  `global_warnings: ["no main session directory found"]` was the only
+  sign).
 
 ### Documented per-participant overrides (`dataset/overrides.yaml`)
 
@@ -444,17 +460,251 @@ blocks, preparation 13 questionnaire items).
   `clock_sync.py`'s own docs, but `sync_report.json`'s `stream_qc` carries
   these numbers per participant so a future outlier session is easy to spot.
 - P001 predates the `data_collection_logs`/opt-out-marker naming convention
-  used from P004 onward; the resolver handles both, but if a 10th
-  participant introduces a third naming variant, extend the glob patterns
-  in `session_resolver.py` rather than adding another override entry.
+  used from P004 onward; the resolver handles both. The anticipated "3rd
+  naming variant" did in fact show up at P010-P012 -- see §3's
+  session-subdir-naming note above for the fix.
 
 ## 7. Environment
 
-Tested against conda env `base` (Python 3.9.7) per the user's request --
-`numpy`, `pandas`, `pyarrow`, `scipy`, `pyyaml` all present. `torch` is not
-installed anywhere yet; only needed for `to_tensor=True` /
-actually wrapping `EventWindowDataset` in a `torch.utils.data.DataLoader`.
-All modules use `from __future__ import annotations` so 3.10-style `X | None`
-type hints don't break on 3.9. Validated end-to-end
-(`python -m dataset.build_dataset --root ... --out-dir ...`) against all 9
-real participants (P001-P009) with zero crashes.
+Tested against conda env `data_collection` (Python 3.10.20) -- `numpy`,
+`pandas`, `pyarrow`, `scipy`, `pyyaml` all present. `torch` is not installed
+anywhere yet; only needed for `to_tensor=True` / actually wrapping
+`EventWindowDataset` in a `torch.utils.data.DataLoader`. All modules use
+`from __future__ import annotations` so 3.10-style `X | None` type hints
+don't break on 3.9 too. Validated end-to-end
+(`python -m dataset.build_dataset --root ... --out-dir ...`) against all 12
+real participants (P001-P012) with zero crashes.
+
+## 8. Fixed-shape `.npy` export (`dataset/export_npy.py`)
+
+Built 2026-08-17 for a downstream collaborator whose own DL/ML pipeline
+(benchmarked against datasets like Mumtaz2016, FACED, MentalArithmetic,
+PhysioNet-MI) expects each task as its own ready-to-load
+`{X.npy: (B, C, T, 200), y.npy: (B,)}` pair, rather than the variable-
+length per-window dicts `EventWindowDataset` returns. Sits on top of
+`dataset/windows.py`/`dataset/torch_dataset.py` -- no changes to those.
+
+**File layout** (`<export_dir>/`):
+```
+<participant_id>/<key>_X.npy       # (B, 8, T, 200) float32
+<participant_id>/<key>_y.npy       # (B,) int64
+<participant_id>/<key>_meta.csv    # B rows, same order as X/y -- every raw
+                                   # participant-response field (see below)
+pooled/<key>_X.npy                 # every participant concatenated
+pooled/<key>_y.npy
+pooled/<key>_participant_ids.npy   # (B,) which participant each pooled row came from
+pooled/<key>_meta.csv
+export_manifest.json               # params used, per-participant/pooled counts,
+                                    # dropped-window reasons, label maps -- audit trail
+```
+Twelve file keys (`{emotion,math,highway,stroop,schulte,sart}_{trial,baseline}`
+-- "math" = the `stress`/raindrop mental-arithmetic task, named for the
+collaborator's own terminology). Every key's rows are independently
+re-derivable: `<key>_meta.csv`'s `t_start`/`t_end` + the participant's own
+`ear_eeg_out.ads1299.parquet` are enough to reproduce `X` exactly (see
+verification below) -- **read `t_start`/`t_end` back with
+`pd.read_csv(..., float_precision="round_trip")`**, not the pandas default,
+which silently loses the last bit of a ~1.79e9 UTC timestamp's precision
+(confirmed: `xstrtod`, pandas' default fast C-engine float parser, not
+`strtod`) -- close enough to look fine but not bit-exact.
+
+**EEG source**: `ear_eeg_out.ads1299` (the mandatory device, 8 channels,
+native 250Hz) -- present for all 12 participants, unlike the optional
+in-ear device. `--eeg-stream ear_eeg_in.ads1299` can be substituted.
+
+**Segmenting** (the `T` dimension): each window's own `[t_start, t_end]`
+span is divided into a fixed `T` equal-width segments, each linearly
+interpolated onto its own 200-point grid (same on-the-fly-resample
+philosophy as `torch_dataset.py`'s `_slice_and_resample`, just reshaped
+into `(T, 200)` instead of one flat time axis) -- so real seconds/segment
+varies by window, but every window in one file still stacks into one
+rectangular array. `T` is a free per-file-key parameter
+(`--segments key=N,...`); `DEFAULT_SEGMENTS` was chosen 2026-08-17 as
+`round(median real duration in seconds)` per key, computed from all 12
+real participants (so one segment ~= 1 real second, i.e. ~200Hz-equivalent
+resampling by default, not blindly over/under-sampled):
+
+| key | median real duration | default T |
+|---|---|---|
+| emotion_trial | 67.5s | 68 |
+| emotion_baseline | 15.0s | 15 |
+| math_trial (block) | 60.0s | 60 |
+| math_baseline | 10.0s | 10 |
+| highway_trial (block) | 61.1s | 61 |
+| highway_baseline | 5.0s | 5 |
+| stroop_trial | 1.07s | 1 |
+| stroop_baseline | 10.0s | 10 |
+| schulte_trial (block) | 25.9s | 26 |
+| schulte_baseline | 10.0s | 10 |
+| sart_trial | 1.16s | 1 |
+| sart_baseline | 30.0s | 30 |
+
+`stroop_trial`/`sart_trial` use `window_type="trial"` (not the
+`RECOMMENDED_TRIAL_WINDOW_TYPE` `"block"`) -- their natural classification
+label (congruency, go/no-go) only exists at the per-stimulus level; SART's
+`"block"` is also just one instance per participant (the whole run), so it
+carries no class variation to label at all.
+
+**Labels** -- each task's own natural experimental condition, encoded as
+small integers with **0 reserved for baseline/rest in every file** (so
+concatenating a task's `_baseline` `y` with its `_trial` `y` reproduces the
+rest(0)/condition(1..) convention several of the reference benchmark
+datasets use):
+```
+emotion_trial   1/2/3 = negative/neutral/positive   (valence group, FACED-style)
+math_trial      1/2/3 = tier_1/tier_2/tier_3         (raindrop mental-arithmetic difficulty)
+highway_trial   1/2/3 = tier_1/tier_2/tier_3         (highway difficulty)
+stroop_trial    1/2   = incongruent/congruent        (classic Stroop label)
+schulte_trial   1/2   = slower/faster than the cohort-wide median completion
+                        time -- Schulte has no natural difficulty condition,
+                        so this is a performance-based split (Mumtaz2016
+                        MentalArithmetic "good/bad counter"-style), using ONE
+                        cohort-wide median threshold, not a per-participant one
+sart_trial      1/2   = go/no_go (digit is/isn't a designated no-go number)
+*_baseline      0     = baseline/rest (every task)
+```
+The raw fields behind every label (valence/arousal/rt/accuracy/tier/
+completion_time/etc.) are never discarded -- `<key>_meta.csv` carries the
+original `stimulus`/`labels`/`meta` dicts as JSON-string columns alongside
+`label`, so a caller who wants the richer original response data has it.
+
+**Verification** (`dataset/sanity_check_npy.py`, does NOT trust
+`export_manifest.json`'s own bookkeeping):
+1. Shape/dtype checks (`X.shape==(B,8,T,200)` float32, `y.shape==(B,)` int64).
+2. Independent re-extraction: reruns `extract_all_windows` fresh and
+   confirms the window count matches what was recorded at export time.
+3. **Recompute-and-compare**: rebuilds a sample of rows straight from the
+   canonical Parquet again and asserts bit-exact match against the stored
+   `.npy` row -- the strongest alignment check, since it repeats the real
+   computation instead of inspecting metadata.
+4. NaN reporting, pooled-vs-per-participant total cross-check.
+
+Validated end-to-end 2026-08-17 across all 12 real participants
+(P001-P012): 0 dropped windows (every matched window had both a resolvable
+label and >=1 in-window EEG sample), 474 recomputed sample rows all
+bit-exact, 0 warnings. P001 has 0 SART-baseline windows (predates that
+event pair being logged) -- an empty-but-correctly-shaped file, not an
+error.
+
+## 9. Attentional-lapse labels + multi-stream export (added 2026-08-18)
+
+Two extensions on top of §8, prompted by a direct question about whether
+the Stroop/Schulte/SART labels risk circular reasoning or reverse causation
+when used to claim something about "attention" specifically (as opposed to
+just task condition).
+
+### The circularity/reverse-causation problem
+
+If a label is derived from the same response whose neural correlate you're
+trying to decode, and the EEG epoch used to predict it *includes* that
+response (button press, its motor preparation, the error-related brain
+activity that follows a mistake), a classifier can hit high accuracy by
+picking up motor/error-related signal rather than anything about attention
+-- it looks like "EEG predicts attention" but is really "EEG contains a
+copy of the label." Related: reverse causation, where the outcome (an
+error) *causes* a neural signature (the error-related negativity, which
+fires AFTER the mistake) rather than an attention lapse causing the error.
+
+Where our existing §8 labels stand on this:
+- `math_trial`/`highway_trial`/`stroop_trial` tier/congruency labels: SAFE
+  -- assigned by experimental design before the trial even renders,
+  independent of the participant's response entirely.
+- `sart_trial` go/no_go: SAFE in the same way (labels *stimulus identity*,
+  not attention), but it answers "what kind of stimulus was this," NOT "was
+  the participant attending" -- don't conflate the two claims.
+- `schulte_trial`'s median-split: the SHARPEST circularity risk of any
+  label here -- `completion_time_sec` (what the label is based on) IS
+  `t_end - t_start` for that window, i.e. the label is a direct function of
+  the window's own duration. Resampling to a fixed T=26 segments means the
+  model never sees the literal duration number as a feature, but subtle
+  "how much real time got compressed into this grid" correlates could
+  still leak in. Not changed (wasn't asked to be); `misclicks` in the same
+  `labels_json` is a cleaner duration-independent alternative if this is
+  ever revisited.
+
+### New: `sart_lapse_trial` / `stroop_lapse_trial`
+
+Genuine behavior-derived "attention lapse" labels, built the way the SART
+literature actually defines one (Robertson et al., 1997, *"...the sound of
+one hand clapping"*: an attentional lapse = a commission error, responding
+on a trial you should have withheld on) -- with the epoch truncated to end
+BEFORE the response so the label can't just be reading its own motor/error
+signature.
+
+**A mechanical detail that changes how the truncation has to work, found by
+checking real event timestamps against the `rt`/`rt_ms` fields (P007):**
+SART's `response` event fires at a ~1.157-1.16s FIXED trial-slot boundary
+regardless of when the actual keypress happened (checked across `rt` from
+0.41s to 1.06s -- the gap from `trial_start` to the `response` event barely
+moves). The real keypress instant is `trial_start + rt`, NOT the event's
+own timestamp. Stroop is the opposite -- its `response` event timestamp
+matches `rt_ms` to within measurement noise, i.e. it IS the real click
+instant. Both need truncation before their response, but from different
+reference points.
+
+```
+sart_lapse_trial (dataset/export_npy.py's _build_sart_lapse_windows):
+  scope: no-go trials only (stimulus.is_omit==True) -- Robertson et al.'s
+         commission-error definition is specifically about no-go trials
+  t_end: responded  -> trial_start + rt - 0.15s        (truncate before the real keypress)
+         !responded -> original t_end (no motor event occurred at all)
+  label: 1 = lapse (commission error), 0 = attentive (correct withhold)
+  dropped if rt - 0.15s < 0.2s (responded too fast to leave a usable window)
+
+stroop_lapse_trial (_build_stroop_lapse_windows):
+  scope: every trial (any incongruent OR congruent trial can be an error)
+  t_end: trial_start + rt_ms/1000 - 0.15s               (truncate before the click)
+  label: 1 = lapse (incorrect response), 0 = attentive (correct response)
+  dropped if rt_ms/1000 - 0.15s < 0.2s
+```
+0.15s buffer: excludes premotor readiness-potential + the keypress itself
+(conservative; movement-preparation onset is commonly reported starting
+~200ms+ before an overt response in the motor-EEG literature). No baseline
+sibling for these two -- they're inherently binary attentive/lapse, not a
+task-vs-rest contrast; use the existing `sart_baseline`/`stroop_baseline`
+(same task) as the rest reference if one is needed.
+
+Real cohort numbers (all 12 participants, primary EEG stream): `sart_lapse_trial`
+406 no-go trials, 77 commission errors (~19%) -- lines up with typical
+SART lapse rates in the literature. `stroop_lapse_trial` 708 trials, only
+12 errors (~1.7%) -- this task was easy enough for these participants that
+error-based Stroop lapses will be a very imbalanced label; congruency
+(`stroop_trial`) remains the better-populated Stroop label if class balance
+matters more than lapse-specificity.
+
+### Multi-stream export (wristband added alongside EEG)
+
+`export_all` now takes a `streams=` list (default: the primary EEG stream
++ every wristband modality: `ppg`, `imu`, `gsr`, `mag`, `mlx`, `bme`) and a
+per-stream `samples_per_segment` dict, instead of hardcoding EEG's 200
+samples/segment for everything. Wristband modalities have very different
+native rates (§1: ppg/imu/gsr @200Hz, mag @100Hz, mlx/bme @1Hz) -- forcing
+all of them through 200 samples/segment would either fabricate data
+(upsampling 1Hz temperature/env sensors) or pointlessly oversample, so each
+stream's default `samples_per_segment` is `round(its own native Hz)`:
+sensible resampling out of the box, still fully overridable
+(`--samples-per-segment wristband.gsr=50`, etc.) if a specific target rate
+is wanted instead. `T` (segment count) stays a property of the file key
+(task duration) and is shared across every stream exported for that key --
+only the per-segment sample count differs by stream.
+
+File naming: the primary EEG stream keeps its original unsuffixed
+`<key>_X.npy` (backward compatible with §8); every other stream gets a
+short suffix, `<key>_<stream>_X.npy` (e.g. `emotion_trial_ppg_X.npy`,
+`schulte_trial_gsr_y.npy`). Each stream is fully self-contained (its own
+X/y/meta.csv, meta.csv regenerated per stream) since a window can have
+usable EEG but a wristband gap or vice versa -- row order/count can
+legitimately differ stream-to-stream for the same file key, so don't
+assume row `i` in `emotion_trial_ppg_X.npy` is the same window as row `i`
+in `emotion_trial_X.npy` without checking their meta.csv's `t_start`.
+
+Validated end-to-end 2026-08-18 across all 12 participants x 14 file keys
+(the original 12 from §8 plus the 2 new lapse keys) x 7 streams: 3913
+independently recomputed sample rows, all bit-exact, 0 warnings, 0 errors.
+1Hz streams (mlx/bme) and the lapse windows' shorter/truncated spans show
+lower per-stream row counts than the EEG version of the same file (e.g.
+`sart_lapse_trial_bme` 314 rows vs `sart_lapse_trial` 406) -- expected, not
+a bug: a 1Hz sensor can land zero samples inside a short/truncated window
+purely from sampling-grid misalignment, tracked per-stream in
+`export_manifest.json`'s `dropped.no_signal_samples_in_window`, never
+silently reconciled against the EEG count.

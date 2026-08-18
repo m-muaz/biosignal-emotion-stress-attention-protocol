@@ -116,11 +116,21 @@ def _find_session_subdirs(log_dir: Path | None, participant_id: str) -> tuple[Pa
     if log_dir is None:
         return None, None, ["no data_collection_logs/data-collection-logs directory found"]
 
-    main_pattern = re.compile(rf"^part-{re.escape(participant_id)}_(\d+)$", re.IGNORECASE)
-    sart_pattern = re.compile(rf"^part-{re.escape(participant_id)}_sart_(\d+)$", re.IGNORECASE)
+    # Naming convention has drifted: most participants' session dirs are
+    # prefixed with their own folder name ("part-P007_<ts>" /
+    # "part-P007_sart_<ts>"), but P010-P012 instead prefix with the
+    # participant's own first name ("zijian_<ts>" / "zijian_sart_<ts>") --
+    # the 3rd naming variant docs/Dataset_Sync_Design.md §6 anticipated.
+    # Match structurally instead of hardcoding a prefix: any dir ending in
+    # "_sart_<digits>" is the SART sub-session; any OTHER dir ending in
+    # "_<digits>" is a main-session candidate. The original "part-<ID>_..."
+    # convention is just a special case of "any prefix", so this covers both
+    # uniformly without a per-participant override.
+    main_pattern = re.compile(r"^.+_(\d+)$", re.IGNORECASE)
+    sart_pattern = re.compile(r"^.+_sart_(\d+)$", re.IGNORECASE)
     subdirs = [p for p in log_dir.iterdir() if p.is_dir()]
-    mains = [p for p in subdirs if main_pattern.match(p.name)]
     sarts = [p for p in subdirs if sart_pattern.match(p.name)]
+    mains = [p for p in subdirs if main_pattern.match(p.name) and not sart_pattern.match(p.name)]
 
     main_dir = None
     if mains:

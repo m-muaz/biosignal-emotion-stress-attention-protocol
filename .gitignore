@@ -6,3 +6,7 @@ __pycache__/
 # (dataset/build_dataset.py's canonical Parquet output) -- regenerated from
 # raw data on demand, never belongs in git.
 notebooks/example_output/
+
+# Whole-cohort canonical Parquet + npy_export output (dataset/build_dataset.py,
+# dataset/export_npy.py) -- also regenerated from raw data on demand.
+data/

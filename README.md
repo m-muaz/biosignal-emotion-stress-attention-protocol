@@ -145,6 +145,28 @@ ds = EventWindowDataset(out_dir, ["P001", "P007"], tasks="emotion", target_hz=25
 sample = ds[0]  # dict of numpy arrays + stimulus/labels
 ```
 
+### Fixed-shape `.npy` export (for external DL/ML loaders)
+
+If you just want ready-to-load `X.npy`/`y.npy` pairs (one per task, plus
+each task's related baseline windows) instead of `EventWindowDataset`'s
+variable-length per-window dicts:
+
+```bash
+python -m dataset.export_npy --processed-dir <out_dir> --export-dir <out_dir>\npy_export
+python -m dataset.sanity_check_npy --processed-dir <out_dir> --export-dir <out_dir>\npy_export
+```
+
+Writes `<export_dir>/<participant_id>/<file_prefix>_{X,y,meta}.{npy,npy,csv}`
+plus `<export_dir>/pooled/<file_prefix>_*` (all participants concatenated),
+for `{emotion,math,highway,stroop,schulte,sart}_{trial,baseline}` plus two
+attentional-lapse labels (`sart_lapse_trial`, `stroop_lapse_trial`) -- by
+default across the primary EEG stream (unsuffixed filenames) AND every
+wristband modality (`_ppg`/`_imu`/`_gsr`/`_mag`/`_mlx`/`_bme` suffix).
+`X.shape == (B, C, T, samples_per_segment)`, `y.shape == (B,)`, with
+`C`/`samples_per_segment` depending on the stream. Full design (label
+scheme incl. the attentional-lapse windows, segment/sample-rate defaults,
+verification method): `docs/Dataset_Sync_Design.md` §8-9.
+
 ## Requirements
 
 `numpy`, `pandas`, `pyarrow`, `scipy`, `pyyaml`. `torch` is only needed if
@@ -161,6 +183,8 @@ dataset/
   build_dataset.py       CLI: raw -> canonical Parquet + sync_report.json
   windows.py             event-defined window extraction, per task
   torch_dataset.py        EventWindowDataset + windowed biosignal loading
+  export_npy.py            fixed-shape (B, C, T, 200) .npy export, per task
+  sanity_check_npy.py       independent verification of export_npy.py output
 docs/Dataset_Sync_Design.md   full design writeup
 notebooks/dataset_walkthrough.ipynb   runnable example (build + inspect + plot)
 ```
