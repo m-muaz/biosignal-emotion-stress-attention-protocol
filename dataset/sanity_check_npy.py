@@ -3,23 +3,16 @@ trust `export_manifest.json`'s own bookkeeping; re-derives everything from
 the canonical Parquet + events log fresh and compares.
 
 Checks, per participant per file key x stream:
-  1. Shape sanity: X.ndim==4, X.shape==(B,C,T,samples_per_segment),
-     y.shape==(B,), dtypes, C matches that stream's configured channel count.
-  2. Window-count cross-check: re-runs `extract_all_windows` (+ the lapse
-     window builders) fresh and confirms it matches `n_matched_windows`
-     recorded at export time -- catches any drift between export and the
-     live windows.py/export_npy.py code.
-  3. Recompute-and-compare: for a sample of rows, rebuilds that exact
-     window's (C, T, samples_per_segment) array straight from the Parquet
-     again and asserts it's bit-identical (allclose) to what's stored in
-     the .npy at the same row -- the strongest possible "is this actually
-     aligned" check, since it repeats the real computation rather than
-     inspecting metadata.
-  4. NaN/degenerate-data reporting: fraction of NaN per file (expected 0
-     unless a stream has a genuine multi-second gap inside a window).
-  5. Pooled-vs-per-participant totals: pooled file's B equals the sum of
-     every participant's `n_written` for that file, and its
-     participant_ids.npy length matches.
+  1. Shape sanity: X.ndim==3, X.shape==(N,C,samples_per_epoch), y.shape==(N,).
+  2. Window-count cross-check: re-runs extract_all_windows (+ lapse
+     builders) fresh, compares against n_matched_windows.
+  3. Epoch-count cross-check: reapplies floor(duration/epoch_s) per matched
+     window, compares against n_epochs_written.
+  4. Recompute-and-compare: rebuilds a sample of rows straight from the
+     Parquet (using each row's own epoch t_start/t_end) and asserts
+     bit-exact match against the stored .npy row.
+  5. NaN reporting.
+  6. Pooled-vs-per-participant totals.
 
 Usage:
     python -m dataset.sanity_check_npy --processed-dir <out_dir> --export-dir <out_dir>\\npy_export
@@ -34,12 +27,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from dataset.export_npy import BASE_SPECS, _file_prefix, _gather_windows, _segment_resample
+from dataset.export_npy import BASE_SPECS, _epoch_bounds, _file_prefix, _gather_windows, _segment_resample
 
 N_RECOMPUTE_SAMPLES = 5  # per (participant, file prefix) -- rows re-derived from scratch and compared
 
 
-def _check_participant_file(pdir: Path, pid: str, prefix: str, T: int, n_channels: int, sps: int, df: pd.DataFrame, matched_windows, value_cols, report: dict):
+def _check_participant_file(pdir: Path, pid: str, prefix: str, epoch_s: float, n_channels: int, sps: int, df: pd.DataFrame, matched_windows, value_cols, report: dict):
     X_path, y_path, meta_path = pdir / f"{prefix}_X.npy", pdir / f"{prefix}_y.npy", pdir / f"{prefix}_meta.csv"
     if not (X_path.exists() and y_path.exists()):
         report["errors"].append(f"{pid}/{prefix}: missing X.npy or y.npy")
@@ -47,19 +40,15 @@ def _check_participant_file(pdir: Path, pid: str, prefix: str, T: int, n_channel
 
     X = np.load(X_path)
     y = np.load(y_path)
-    # float_precision="round_trip" -- pandas' default C-engine float parser
-    # (xstrtod) silently loses the last bit of precision on t_start/t_end
-    # (confirmed: a ~1.79e9 UTC timestamp reads back off by ~2e-7s), which
-    # shifts the resample grid enough to fail the bit-exact recompute check
-    # below. Every consumer of these meta.csv files should read them the
-    # same way if they ever recompute against t_start/t_end.
+    # round_trip: pandas' default float parser loses precision on
+    # t_start/t_end, which breaks the bit-exact recompute check below.
     meta = pd.read_csv(meta_path, float_precision="round_trip") if meta_path.exists() else pd.DataFrame()
 
-    if X.ndim != 4:
-        report["errors"].append(f"{pid}/{prefix}: X.ndim={X.ndim}, expected 4")
+    if X.ndim != 3:
+        report["errors"].append(f"{pid}/{prefix}: X.ndim={X.ndim}, expected 3")
         return
-    if X.shape[1:] != (n_channels, T, sps):
-        report["errors"].append(f"{pid}/{prefix}: X.shape={X.shape}, expected (B, {n_channels}, {T}, {sps})")
+    if X.shape[1:] != (n_channels, sps):
+        report["errors"].append(f"{pid}/{prefix}: X.shape={X.shape}, expected (N, {n_channels}, {sps})")
     if y.shape != (X.shape[0],):
         report["errors"].append(f"{pid}/{prefix}: y.shape={y.shape} != (X.shape[0]={X.shape[0]},)")
     if len(meta) != X.shape[0]:
@@ -73,24 +62,38 @@ def _check_participant_file(pdir: Path, pid: str, prefix: str, T: int, n_channel
     if n_nan:
         report["warnings"].append(f"{pid}/{prefix}: {n_nan}/{X.size} NaN values ({100*n_nan/X.size:.3f}%)")
 
-    # window-count cross-check: independent re-extraction vs. what was exported
+    participant_report = report["manifest_participants"].get(pid, {}).get(prefix, {})
+
+    # window-count cross-check
     n_expected = len(matched_windows)
-    n_recorded = report["manifest_participants"].get(pid, {}).get(prefix, {}).get("n_matched_windows")
+    n_recorded = participant_report.get("n_matched_windows")
     if n_recorded is not None and n_recorded != n_expected:
         report["errors"].append(f"{pid}/{prefix}: manifest says n_matched_windows={n_recorded}, fresh extract gives {n_expected}")
 
-    # recompute-and-compare: rebuild a sample of rows straight from Parquet
-    # and bit-check against what's actually stored in the .npy
-    n_written = report["manifest_participants"].get(pid, {}).get(prefix, {}).get("n_written", X.shape[0])
-    if n_written and len(meta):
-        sample_idx = np.linspace(0, n_written - 1, num=min(N_RECOMPUTE_SAMPLES, n_written), dtype=int)
+    # epoch-count cross-check. matched_windows isn't label-filtered, so this
+    # is an upper bound: only asserted exactly when nothing was dropped.
+    n_epochs_expected = sum(_epoch_bounds(w.t_start, w.t_end, epoch_s)[0] for w in matched_windows)
+    dropped = participant_report.get("dropped", {})
+    n_epochs_recorded = participant_report.get("n_epochs_written")
+    if n_epochs_recorded is not None:
+        n_dropped_elsewhere = dropped.get("label_unresolvable", 0) + dropped.get("no_signal_epochs", 0)
+        if n_dropped_elsewhere == 0 and n_epochs_recorded != n_epochs_expected:
+            report["errors"].append(f"{pid}/{prefix}: manifest says n_epochs_written={n_epochs_recorded}, fresh sum gives {n_epochs_expected}")
+        elif n_epochs_recorded > n_epochs_expected:
+            report["errors"].append(f"{pid}/{prefix}: n_epochs_written={n_epochs_recorded} exceeds upper bound {n_epochs_expected} from fresh re-extraction")
+
+    # recompute-and-compare: rebuild a sample of rows from each row's own
+    # epoch bounds (n_segments=1) and bit-check against the stored .npy row
+    n_epochs_written = participant_report.get("n_epochs_written", X.shape[0])
+    if n_epochs_written and len(meta):
+        sample_idx = np.linspace(0, n_epochs_written - 1, num=min(N_RECOMPUTE_SAMPLES, n_epochs_written), dtype=int)
         for idx in sample_idx:
             row = meta.iloc[idx]
-            recomputed = _segment_resample(df, float(row["t_start"]), float(row["t_end"]), value_cols, T, samples_per_segment=sps)
+            recomputed = _segment_resample(df, float(row["t_start"]), float(row["t_end"]), value_cols, 1, samples_per_segment=sps)
             if recomputed is None:
                 report["errors"].append(f"{pid}/{prefix} row {idx}: recompute found zero signal samples, but this row was written")
                 continue
-            if not np.allclose(recomputed, X[idx], equal_nan=True):
+            if not np.allclose(recomputed[:, 0, :], X[idx], equal_nan=True):
                 report["errors"].append(f"{pid}/{prefix} row {idx}: recomputed array does NOT match stored .npy row -- alignment bug")
         report["n_recomputed_ok"] += len(sample_idx)
 
@@ -100,8 +103,10 @@ def run_sanity_checks(processed_dir: Path, export_dir: Path, streams: list[str] 
     manifest = json.loads((export_dir / "export_manifest.json").read_text(encoding="utf-8"))
     streams = streams if streams is not None else manifest["streams"]
     channels = manifest["channels"]
-    segments = manifest["segments"]
+    epoch_seconds = manifest["epoch_seconds"]
     samples_per_segment = manifest["samples_per_segment"]
+    specs_by_key = {s["key"]: s for s in BASE_SPECS}
+    file_keys = manifest.get("file_keys", list(specs_by_key))  # actual keys exported this run, e.g. for --emotion-only
 
     report = {"errors": [], "warnings": [], "n_recomputed_ok": 0, "manifest_participants": manifest["participants"]}
 
@@ -117,10 +122,10 @@ def run_sanity_checks(processed_dir: Path, export_dir: Path, streams: list[str] 
             path = processed_dir / pid / f"{stream}.parquet"
             stream_dfs[stream] = pd.read_parquet(path) if path.exists() else None
 
-        for spec in BASE_SPECS:
-            key = spec["key"]
+        for key in file_keys:
+            spec = specs_by_key[key]
             matched = [w for w in windows if w.task == spec["task"] and w.window_type == spec["window_type"]]
-            T = segments[key]
+            epoch_s = epoch_seconds[key]
 
             for stream in streams:
                 prefix = _file_prefix(key, stream)
@@ -131,23 +136,23 @@ def run_sanity_checks(processed_dir: Path, export_dir: Path, streams: list[str] 
                     continue
                 n_channels = len(channels[stream])
                 sps = samples_per_segment.get(stream, 200)
-                _check_participant_file(pdir, pid, prefix, T, n_channels, sps, df, matched, channels[stream], report)
+                _check_participant_file(pdir, pid, prefix, epoch_s, n_channels, sps, df, matched, channels[stream], report)
 
     # pooled-vs-per-participant totals
     pool_dir = export_dir / "pooled"
     if pool_dir.is_dir():
-        for spec in BASE_SPECS:
+        for key in file_keys:
             for stream in streams:
-                prefix = _file_prefix(spec["key"], stream)
+                prefix = _file_prefix(key, stream)
                 pooled_y_path = pool_dir / f"{prefix}_y.npy"
                 pooled_pid_path = pool_dir / f"{prefix}_participant_ids.npy"
                 if not pooled_y_path.exists():
                     continue
                 pooled_y = np.load(pooled_y_path)
                 pooled_pid = np.load(pooled_pid_path, allow_pickle=True)
-                expected_total = sum(manifest["participants"][pid].get(prefix, {}).get("n_written", 0) for pid in participant_ids)
+                expected_total = sum(manifest["participants"][pid].get(prefix, {}).get("n_epochs_written", 0) for pid in participant_ids)
                 if len(pooled_y) != expected_total:
-                    report["errors"].append(f"pooled/{prefix}: y has {len(pooled_y)} rows, sum of per-participant n_written is {expected_total}")
+                    report["errors"].append(f"pooled/{prefix}: y has {len(pooled_y)} rows, sum of per-participant n_epochs_written is {expected_total}")
                 if len(pooled_pid) != len(pooled_y):
                     report["errors"].append(f"pooled/{prefix}: participant_ids.npy length {len(pooled_pid)} != y length {len(pooled_y)}")
 

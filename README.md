@@ -156,16 +156,91 @@ python -m dataset.export_npy --processed-dir <out_dir> --export-dir <out_dir>\np
 python -m dataset.sanity_check_npy --processed-dir <out_dir> --export-dir <out_dir>\npy_export
 ```
 
+Every task-defined window (e.g. one video clip's `[t_start, t_end]`) is cut
+into fixed-length, **non-overlapping epochs** (default 1.0 real second,
+the unit a foundation-model-style loader consumes) before any resampling.
+A clip only ever contributes `floor(duration_seconds / epoch_seconds)`
+epochs -- any leftover shorter than one full epoch (e.g. the last 0.2s of a
+67.2s clip at the 1.0s default) is dropped, never padded. Every epoch
+becomes its own row and inherits its parent clip's label, so a clip running
+67.2s and another running 70.5s both just contribute their own (different)
+number of same-shaped rows -- no padding/truncation needed to concatenate
+epochs from clips of different lengths, or across participants.
+
 Writes `<export_dir>/<participant_id>/<file_prefix>_{X,y,meta}.{npy,npy,csv}`
 plus `<export_dir>/pooled/<file_prefix>_*` (all participants concatenated),
 for `{emotion,math,highway,stroop,schulte,sart}_{trial,baseline}` plus two
 attentional-lapse labels (`sart_lapse_trial`, `stroop_lapse_trial`) -- by
-default across the primary EEG stream (unsuffixed filenames) AND every
-wristband modality (`_ppg`/`_imu`/`_gsr`/`_mag`/`_mlx`/`_bme` suffix).
-`X.shape == (B, C, T, samples_per_segment)`, `y.shape == (B,)`, with
-`C`/`samples_per_segment` depending on the stream. Full design (label
-scheme incl. the attentional-lapse windows, segment/sample-rate defaults,
-verification method): `docs/Dataset_Sync_Design.md` §8-9.
+default across **every device this protocol collects**: the mandatory
+out-ear EEG (unsuffixed filenames), the optional in-ear EEG device plus its
+onboard PPG/IMU/temp/env sensors (`_eegin`/`_inear_ppg`/`_inear_imu`/
+`_inear_mlx`/`_inear_bme` suffix), every wristband modality (`_ppg`/`_imu`/
+`_gsr`/`_mag`/`_mlx`/`_bme` suffix), and the Polar H10 chest strap
+(`_ecg`/`_polar_acc` suffix). `X.shape == (N, C, samples_per_epoch)` --
+**`N` is the total number of epochs, not clips/windows** -- `y.shape ==
+(N,)`, with `C`/`samples_per_epoch` depending on the stream. Pass
+`--streams <names>` to export a subset instead (stream names are the
+`<device>.<role>` Parquet file names under each participant's output dir,
+e.g. `ear_eeg_out.ads1299`, `wristband.gsr`, `polar_h10.ecg`), and
+`--epoch-seconds <key>=<seconds>,...` to change the epoch length for one or
+more file keys (default 1.0s for every key). Full design (label scheme incl.
+the attentional-lapse windows, sample-rate defaults, verification method):
+`docs/Dataset_Sync_Design.md` §8-9.
+
+#### Generating just the video emotion task (e.g. to hand off to a collaborator)
+
+The emotion task's labels are the only ones finalized so far (design-assigned
+valence group -- see the table above; stress/attention lapse labels are
+still under discussion, see `PROGRESS.md`). To export only `emotion_trial`/
+`emotion_baseline` (skips every other task, incl. the Schulte cohort-median
+pass) with every device's data attached:
+
+```bash
+# 1. Build the canonical synced dataset (skip if you already have <out_dir>)
+python -m dataset.build_dataset --root <sessions_root> --out-dir <out_dir>
+
+# 2. Export just the emotion task, every stream, to <out_dir>\npy_export
+#    (1-second epochs by default; e.g. --epoch-seconds emotion_trial=2 for 2s epochs instead)
+python -m dataset.export_npy --processed-dir <out_dir> --export-dir <out_dir>\npy_export --emotion-only
+
+# 3. Independently verify the export before sharing it (recomputes a sample
+#    of epochs straight from the synced Parquet and checks they're bit-exact)
+python -m dataset.sanity_check_npy --processed-dir <out_dir> --export-dir <out_dir>\npy_export
+```
+
+What your collaborator gets, per participant (plus `pooled/` with every
+participant concatenated):
+
+- `emotion_trial_X.npy` / `emotion_trial_y.npy` -- one row per **1-second
+  epoch** of a video clip (not one row per clip): a 67.2s clip contributes
+  67 rows, a 70.5s clip contributes 70. `X.shape == (N, 8, 200)` (out-ear
+  EEG, 8 channels, 200-point grid per 1s epoch). `y` is `1`/`2`/`3` for
+  negative/neutral/positive (the assigned stimulus valence group -- not
+  behavior-derived, so no circularity risk); every epoch from the same clip
+  shares that clip's label.
+- `emotion_baseline_X.npy` / `emotion_baseline_y.npy` -- same idea for the
+  resting baseline windows recorded before/mid/after each block, kept as
+  separate rows from the trial windows (`y` is always `0`).
+- The same two pairs again per additional stream, suffixed (e.g.
+  `emotion_trial_eegin_X.npy`, `emotion_trial_ecg_X.npy`,
+  `emotion_trial_gsr_X.npy`) -- a stream's row *count* can differ from the
+  EEG version of the same file if a device had a gap for a given window, so
+  don't assume row `i` lines up across streams without checking
+  `t_start`/`t_end` in the matching `_meta.csv`.
+- `emotion_trial_meta.csv` -- one row per `X`/`y` row (i.e. per epoch), with
+  the participant ID, block/trial index, this epoch's own `t_start`/`t_end`
+  plus `epoch_index`/`n_epochs_in_window` (to group epochs back into their
+  source clip -- also identifiable via the shared `window_t_start`/
+  `window_t_end` columns), and (in `labels_json`) every raw post-clip
+  response the participant gave: `emotion_pick` (their own pick of
+  positive/negative/neutral), `valence`, `arousal`, `liking`, plus response
+  times -- so nothing beyond the small integer `y` label is thrown away.
+
+`export_manifest.json` (written alongside the per-participant folders) is
+the audit trail -- per-participant/pooled epoch counts, dropped-window
+reasons (incl. `too_short_for_one_epoch`, for any clip shorter than one
+epoch), and the label map. `sanity_check_npy.py`'s printed report should
+say `SANITY CHECK: PASSED` before sharing the export.
 
 ## Requirements
 

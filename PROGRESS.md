@@ -1,5 +1,35 @@
 # Progress notes: label generation (WORK IN PROGRESS)
 
+**Update 2026-08-20:** `export_npy.py` now supports `--emotion-only` (skips
+every non-emotion file key, incl. the Schulte cohort-median pass) and
+defaults to exporting every device's data, not just EEG + wristband --
+Polar H10 (`polar_h10.ecg`/`polar_h10.acc`) and the full in-ear device
+(`ear_eeg_in.ads1299` + its onboard PPG/IMU/temp/env sensors) are now wired
+in as additional streams. `sanity_check_npy.py` now reads the actual
+exported file keys from `export_manifest.json["file_keys"]` instead of
+hardcoding every possible key, so it verifies an `--emotion-only` export
+correctly instead of reporting missing stress/attention files. See README's
+"Generating just the video emotion task" section. This was specifically for
+handing the emotion task off to a collaborator now, while the stress/
+attention label open questions below are still unresolved -- nothing here
+touches those.
+
+**Update 2026-08-20 (2):** `export_npy.py`'s segmenting was redesigned from
+fixed segment-count `T` (computed per file key from the *median* real
+duration, `X.shape == (B, C, T, samples_per_segment)`) to fixed-length
+**epochs** (default 1.0s, overridable via `--epoch-seconds key=N,...`):
+every window is now cut into `floor(duration_s / epoch_s)` non-overlapping
+epochs, any leftover shorter than one epoch dropped (never padded), and
+every epoch becomes its own row -- `X.shape == (N, C, samples_per_epoch)`
+with `N` = total epochs, not windows/clips. Rows from clips of different
+real lengths concatenate directly with no padding/truncation. New
+`meta.csv` columns: `window_t_start`/`window_t_end` (parent clip's span),
+`epoch_index`/`n_epochs_in_window` (to regroup epochs into their source
+clip); `t_start`/`t_end` now mean the epoch's own bounds, not the window's.
+`sanity_check_npy.py` updated to match (recomputes per-epoch, cross-checks
+epoch counts). `docs/Dataset_Sync_Design.md` §8's segment-count writeup is
+now flagged superseded rather than rewritten in place -- see its note.
+
 Status as of 2026-08-18. This is a handoff note so work can continue on
 another machine while this one is tied up running data collection. Full
 technical design/decisions already made live in `docs/Dataset_Sync_Design.md`

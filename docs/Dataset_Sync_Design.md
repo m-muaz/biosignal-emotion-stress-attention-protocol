@@ -477,6 +477,21 @@ real participants (P001-P012) with zero crashes.
 
 ## 8. Fixed-shape `.npy` export (`dataset/export_npy.py`)
 
+**Superseded 2026-08-20:** the segmenting design below (fixed segment count
+`T` per file key, computed from each key's *median* real duration, `X.shape
+== (B, C, T, samples_per_segment)`) has been replaced with fixed-length
+**epochs** instead: every window is cut into `floor(duration_s / epoch_s)`
+non-overlapping `epoch_s`-length epochs (default 1.0s, per-key
+`--epoch-seconds` override), any leftover shorter than one epoch dropped
+(never padded), and every epoch becomes its own row -- `X.shape == (N, C,
+samples_per_epoch)` with `N` = total epochs (not windows/clips). This
+means rows from clips of different real durations concatenate directly, no
+padding/truncation needed. The label maps, circularity discussion, and
+per-task window specs below are all still accurate; only the
+segment-count/`T`/`DEFAULT_SEGMENTS` mechanics described in this section
+and §9 are stale -- see `dataset/export_npy.py`'s module docstring and
+README's "Fixed-shape `.npy` export" section for the current mechanics.
+
 Built 2026-08-17 for a downstream collaborator whose own DL/ML pipeline
 (benchmarked against datasets like Mumtaz2016, FACED, MentalArithmetic,
 PhysioNet-MI) expects each task as its own ready-to-load
