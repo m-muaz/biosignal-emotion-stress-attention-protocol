@@ -1,0 +1,17 @@
+# Dataset Version 4 -- Stroop condition-adjusted RT residual dataset (plan §60
+# Version 4). Same stimulus-locked window as Version 3; the target differs
+# (derived_stroop_rt_residual, fit on train participants only -- see
+# dataset/attention_labels/versions.py::version4_stroop_rt_residual).
+name: a4_stroop_rt_residual
+version_builder: a4_stroop_rt_residual
+tasks: [stroop]
+
+windowing:
+  mode: stimulus_locked
+  anchor_col: stimulus_timestamp
+  pre_sec: 1.0
+  post_sec: 2.0
+
+split:
+  strategy: participant
+  seed: 42

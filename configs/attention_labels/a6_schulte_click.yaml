@@ -1,0 +1,19 @@
+# Dataset Version 6 -- Schulte click-level dataset (plan §60 Version 6, §49
+# example verbatim). Fixed pre-click window: avoids the block-level leakage
+# problem (window duration doesn't determine the target here).
+name: a6_schulte_click
+version_builder: a6_schulte_click
+tasks: [schulte]
+
+requirements:
+  click_reconstruction_valid: true
+
+windowing:
+  mode: pre_click
+  anchor_col: click_timestamp
+  pre_sec: 2.0
+  post_sec: 0.0
+
+split:
+  strategy: participant
+  seed: 42

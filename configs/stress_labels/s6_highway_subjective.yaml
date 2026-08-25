@@ -1,0 +1,9 @@
+# Version s6 -- Highway self-report (subjective rating) dataset. HIGHWAY ONLY.
+# Targets: subj_stress / subj_workload / etc. Block-resolution -- one questionnaire
+# observation may back many physiological windows within that tier (see meta.
+name: s6_highway_subjective
+version_builder: s6_highway_subjective
+task: attention_highway
+
+split:
+  seed: 42

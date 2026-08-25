@@ -1,0 +1,14 @@
+# Dataset Version 3 -- Stroop behavioral dataset (plan §60 Version 3, §48 example).
+name: a3_stroop_behavior
+version_builder: a3_stroop_behavior
+tasks: [stroop]
+
+windowing:
+  mode: stimulus_locked
+  anchor_col: stimulus_timestamp
+  pre_sec: 1.0
+  post_sec: 2.0
+
+split:
+  strategy: participant
+  seed: 42

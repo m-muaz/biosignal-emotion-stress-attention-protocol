@@ -1,0 +1,10 @@
+# Version s0b -- Highway (driving) task: baseline vs. active block.
+# Target: cond_stress_induction_binary (0=baseline, 1=active). Block-resolution.
+name: s0b_highway_baseline_vs_active
+version_builder: s0b_highway_baseline_vs_active
+task: attention_highway
+
+exclude_highway_pre_fix: false  # set true to drop the 4 pre-fix highway participants (known same-wave duplicate-scoring bug)
+
+split:
+  seed: 42

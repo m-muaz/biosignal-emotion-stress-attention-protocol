@@ -33,6 +33,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from dataset.eeg_preprocess import CHANNELS as EEG_CHANNELS
+from dataset.eeg_preprocess import NATIVE_FS as EEG_NATIVE_FS
+from dataset.eeg_preprocess import convert_and_filter
+from dataset.eeg_qc import kurtosis_reference_from_epochs, score_epoch
 from dataset.torch_dataset import STREAM_VALUE_COLUMNS
 from dataset.windows import Window, extract_all_windows, load_events_parquet
 
@@ -82,6 +86,26 @@ STREAM_SHORT_NAME = {
 }
 
 DEFAULT_STREAMS = [DEFAULT_EEG_STREAM, IN_EAR_EEG_STREAM] + IN_EAR_AUX_STREAMS + WRISTBAND_STREAMS + POLAR_STREAMS
+
+# Both out-ear and in-ear devices are the same ADS1299 hardware/firmware
+# config (dataset/eeg_preprocess.py's gain=24x/Vref=4.5V ADC->uV conversion
+# and ch1..ch8 columns apply to both) -- so both get raw-ADC-counts->uV
+# conversion, notch+bandpass filtering, and per-epoch QC scoring before
+# being written to X.npy. Every other stream (PPG/IMU/GSR/ECG/...) keeps
+# the original generic raw-value resample path -- they aren't ADS1299
+# channels and have no equivalent conversion/QC pipeline defined.
+EEG_STREAMS = {DEFAULT_EEG_STREAM, IN_EAR_EEG_STREAM}
+
+QC_META_COLUMNS = [
+    "qc_n_checks_passed_min_over_channels",
+    "qc_n_checks_total",
+    "qc_clip_frac_max",
+    "qc_dc_drift_uv_max",
+    "qc_emg_hf_ratio_max",
+    "qc_line_noise_ratio_max",
+    "qc_snr_db_min",
+    "qc_channels_json",
+]
 
 
 def _file_prefix(key: str, stream: str) -> str:
@@ -303,6 +327,41 @@ def _segment_resample(df: pd.DataFrame, t_start: float, t_end: float, value_cols
     return flat.T.reshape(len(value_cols), n_segments, samples_per_segment).astype(np.float32)
 
 
+def _slice_uv(df: pd.DataFrame, t_start: float, t_end: float, value_cols: list[str]) -> tuple[np.ndarray, np.ndarray] | None:
+    """Returns (n_channels, n_samples) at native resolution within
+    [t_start, t_end], or None if fewer than 2 samples are present -- same
+    convention as dataset/attention_labels/export_npy.py and
+    dataset/stress_labels/export_npy.py's identical helper."""
+    wall = df["wall_utc_s"].to_numpy()
+    mask = (wall >= t_start) & (wall <= t_end)
+    if mask.sum() < 2:
+        return None
+    return df.loc[mask, value_cols].to_numpy(dtype=np.float64).T, wall[mask]
+
+
+def _resample_eeg_epoch(vals: np.ndarray, src_wall: np.ndarray, t_start: float, t_end: float, n_samples: int) -> np.ndarray:
+    grid = np.linspace(0.0, t_end - t_start, n_samples)
+    src_t = src_wall - t_start
+    out = np.empty((vals.shape[0], n_samples), dtype=np.float64)
+    for c in range(vals.shape[0]):
+        out[c] = np.interp(grid, src_t, vals[c])
+    return out
+
+
+def _qc_summary_row(epoch_qc: dict) -> dict:
+    channels = epoch_qc["channels"]
+    return {
+        "qc_n_checks_passed_min_over_channels": epoch_qc["n_checks_passed_min_over_channels"],
+        "qc_n_checks_total": epoch_qc["n_checks_total"],
+        "qc_clip_frac_max": max(c["clip_frac"] for c in channels),
+        "qc_dc_drift_uv_max": max(c["dc_drift_uv"] for c in channels),
+        "qc_emg_hf_ratio_max": max(c["emg_hf_ratio"] for c in channels if not np.isnan(c["emg_hf_ratio"])) if channels else float("nan"),
+        "qc_line_noise_ratio_max": max(c["line_noise_ratio"] for c in channels if not np.isnan(c["line_noise_ratio"])) if channels else float("nan"),
+        "qc_snr_db_min": min(c["snr_db"] for c in channels) if channels else float("nan"),
+        "qc_channels_json": json.dumps(channels),
+    }
+
+
 def _build_specs(schulte_median_s: float | None) -> list[dict]:
     specs = []
     for spec in BASE_SPECS:
@@ -431,18 +490,36 @@ def export_all(
         if pid not in windows_by_pid:
             participant_report["_warning"] = "no events.parquet found -- every file key gets 0 windows"
 
+        # EEG streams (ch1..ch8, ADS1299 hardware) get raw-ADC-counts->uV
+        # conversion + notch/bandpass filtering ONCE here, on the whole
+        # continuous participant recording -- filtering an already-cut short
+        # epoch is not standard practice (see dataset/eeg_preprocess.py's
+        # module docstring: settling time vs. epoch length). Every other
+        # stream keeps its raw parquet, read straight through.
         stream_dfs = {}
         for stream in streams:
             path = processed_dir / pid / f"{stream}.parquet"
-            stream_dfs[stream] = pd.read_parquet(path) if path.exists() else None
+            if not path.exists():
+                stream_dfs[stream] = None
+                continue
+            raw_df = pd.read_parquet(path)
+            if stream in EEG_STREAMS:
+                stream_dfs[stream] = convert_and_filter(raw_df, EEG_CHANNELS, EEG_NATIVE_FS)  # (uv_raw_uniform, uv_filtered)
+            else:
+                stream_dfs[stream] = raw_df
 
+        # Label + epoch-count planning is stream-independent -- signal
+        # availability is checked per stream separately below. Computed once
+        # per spec, reused across every stream (was already the case before
+        # this restructuring; kept as its own pass so the EEG branch below
+        # can do its own two-pass-per-participant QC reference scoring
+        # across every spec's epochs for a given stream, not just one spec
+        # at a time).
+        spec_planned: dict[str, tuple[list, int, int]] = {}
         for spec in specs:
             key = spec["key"]
             epoch_s = epoch_seconds[key]
             matched = [w for w in windows if w.task == spec["task"] and w.window_type == spec["window_type"]]
-
-            # Label + epoch-count planning is stream-independent -- signal
-            # availability (below) is checked per stream separately.
             planned, n_label_unresolvable, n_too_short = [], 0, 0
             for w in matched:
                 label = spec["label_fn"](w)
@@ -454,16 +531,105 @@ def export_all(
                     n_too_short += 1
                     continue
                 planned.append((w, label, n_epochs, t_end_eff))
+            spec_planned[key] = (planned, n_label_unresolvable, n_too_short)
 
-            for stream in streams:
+        for stream in streams:
+            df_or_pair = stream_dfs[stream]
+            value_cols = STREAM_VALUE_COLUMNS[stream]
+            sps = samples_per_segment.get(stream, SAMPLES_PER_SEGMENT)
+            is_eeg = stream in EEG_STREAMS
+
+            if df_or_pair is None:
+                for spec in specs:
+                    participant_report[file_prefixes[spec["key"]][stream]] = {"error": f"{stream}.parquet not found"}
+                continue
+
+            if is_eeg:
+                uv_raw_df, uv_filt_df = df_or_pair
+                # Pass 1: build every epoch, for every spec, for THIS
+                # participant+stream, deferring QC scoring -- the kurtosis
+                # outlier check needs a reference population (mean/std of
+                # kurtosis) built from this participant's OWN epochs on
+                # THIS stream (electrode contact quality is participant-
+                # and device-specific), so every epoch across every spec
+                # must exist before any of them can be scored (mirrors
+                # dataset/stress_labels/export_npy.py and dataset/
+                # attention_labels/export_npy.py's identical two-pass shape).
+                pending_by_key: dict[str, list] = {}
+                n_no_signal_by_key: dict[str, int] = {}
+                for spec in specs:
+                    key = spec["key"]
+                    epoch_s = epoch_seconds[key]
+                    planned, _, _ = spec_planned[key]
+                    pending, n_no_signal = [], 0
+                    for w, label, n_epochs, t_end_eff in planned:
+                        for e in range(n_epochs):
+                            epoch_t_start = w.t_start + e * epoch_s
+                            epoch_t_end = epoch_t_start + epoch_s
+                            raw_slice = _slice_uv(uv_raw_df, epoch_t_start, epoch_t_end, value_cols)
+                            filt_slice = _slice_uv(uv_filt_df, epoch_t_start, epoch_t_end, value_cols)
+                            if raw_slice is None or filt_slice is None:
+                                n_no_signal += 1
+                                continue
+                            raw_vals, raw_wall = raw_slice
+                            filt_vals, filt_wall = filt_slice
+                            raw_epoch = _resample_eeg_epoch(raw_vals, raw_wall, epoch_t_start, epoch_t_end, sps)
+                            filt_epoch = _resample_eeg_epoch(filt_vals, filt_wall, epoch_t_start, epoch_t_end, sps)
+                            pending.append((raw_epoch, filt_epoch, w, label, e, n_epochs, epoch_t_start, epoch_t_end))
+                    pending_by_key[key] = pending
+                    n_no_signal_by_key[key] = n_no_signal
+
+                kurtosis_ref = kurtosis_reference_from_epochs([p[1] for pending in pending_by_key.values() for p in pending])
+
+                for spec in specs:
+                    key = spec["key"]
+                    epoch_s = epoch_seconds[key]
+                    prefix = file_prefixes[key][stream]
+                    planned, n_label_unresolvable, n_too_short = spec_planned[key]
+
+                    X_list, y_list, meta_rows = [], [], []
+                    for raw_epoch, filt_epoch, w, label, e, n_epochs, epoch_t_start, epoch_t_end in pending_by_key[key]:
+                        epoch_qc = score_epoch(raw_epoch, filt_epoch, fs=sps / epoch_s, kurtosis_ref=kurtosis_ref)
+                        X_list.append(filt_epoch.astype(np.float32))
+                        y_list.append(label)
+                        meta_row = _epoch_meta_row(pid, w, label, e, n_epochs, epoch_t_start, epoch_t_end)
+                        meta_row.update(_qc_summary_row(epoch_qc))
+                        meta_rows.append(meta_row)
+
+                    X = np.stack(X_list, axis=0) if X_list else np.zeros((0, len(value_cols), sps), dtype=np.float32)
+                    y = np.array(y_list, dtype=np.int64) if y_list else np.zeros((0,), dtype=np.int64)
+                    meta_df = pd.DataFrame(meta_rows, columns=META_COLUMNS + QC_META_COLUMNS)
+
+                    np.save(pdir / f"{prefix}_X.npy", X)
+                    np.save(pdir / f"{prefix}_y.npy", y)
+                    meta_df.to_csv(pdir / f"{prefix}_meta.csv", index=False, float_format="%.17g")
+
+                    participant_report[prefix] = {
+                        "n_matched_windows": len(planned) + n_label_unresolvable + n_too_short,
+                        "n_windows_planned": len(planned),
+                        "n_epochs_written": len(y_list),
+                        "dropped": {
+                            "label_unresolvable": n_label_unresolvable,
+                            "too_short_for_one_epoch": n_too_short,
+                            "no_signal_epochs": n_no_signal_by_key[key],
+                        },
+                        "shape": list(X.shape),
+                    }
+
+                    if pool:
+                        pooled[prefix]["X"].append(X)
+                        pooled[prefix]["y"].append(y)
+                        pooled[prefix]["pid"].extend([pid] * len(y_list))
+                        pooled[prefix]["meta"].append(meta_df)
+                continue
+
+            # -- non-EEG streams: unchanged generic raw-value resample path --
+            df = df_or_pair
+            for spec in specs:
+                key = spec["key"]
+                epoch_s = epoch_seconds[key]
                 prefix = file_prefixes[key][stream]
-                df = stream_dfs[stream]
-                if df is None:
-                    participant_report[prefix] = {"error": f"{stream}.parquet not found"}
-                    continue
-
-                value_cols = STREAM_VALUE_COLUMNS[stream]
-                sps = samples_per_segment.get(stream, SAMPLES_PER_SEGMENT)
+                planned, n_label_unresolvable, n_too_short = spec_planned[key]
 
                 # Each epoch is resampled independently (n_segments=1 over
                 # just that epoch's own bounds), NOT as one joint multi-
@@ -502,7 +668,7 @@ def export_all(
                 meta_df.to_csv(pdir / f"{prefix}_meta.csv", index=False, float_format="%.17g")
 
                 participant_report[prefix] = {
-                    "n_matched_windows": len(matched),
+                    "n_matched_windows": len(planned) + n_label_unresolvable + n_too_short,
                     "n_windows_planned": len(planned),  # passed label + min-duration filtering
                     "n_epochs_written": len(y_list),
                     "dropped": {

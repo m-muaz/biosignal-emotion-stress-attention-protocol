@@ -1,0 +1,22 @@
+# Dataset Version 2 -- SART prospective lapse-prediction dataset (plan §60
+# Version 2, §47 example verbatim). Highest priority per the plan: predicts
+# trial i+1's outcome from a pre-stimulus window on trial i, so the window
+# must end at or before the stimulus it precedes (Rule 23) -- enforced in
+# dataset/attention_labels/export_npy.py, not just documented here.
+name: a2_sart_prospective_lapse
+version_builder: a2_sart_prospective_lapse
+tasks: [sart]
+
+windowing:
+  mode: prospective_pre_stimulus
+  anchor_col: stimulus_timestamp
+  pre_sec: 5.0
+  post_sec: 0.0
+
+history:
+  rt_trials: 10
+  minimum_valid_trials: 3
+
+split:
+  strategy: participant
+  seed: 42

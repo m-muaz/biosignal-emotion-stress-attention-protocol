@@ -1,0 +1,19 @@
+# Dataset Version 5 -- Schulte block behavioral dataset (plan §60 Version 5).
+# Block-resolution window: the whole grid attempt, start to end. NOTE this
+# means window duration == completion_time_sec for the trial-of-interest --
+# the plan's own leakage warning (Rule 15/§26) applies if you ever put
+# completion_time_sec itself on the model_target for THIS window mode. Use
+# a6 (pre-click) for a target that isn't a direct function of its own window
+# length.
+name: a5_schulte_block
+version_builder: a5_schulte_block
+tasks: [schulte]
+
+windowing:
+  mode: block
+  start_col: block_start
+  end_col: block_end
+
+split:
+  strategy: participant
+  seed: 42

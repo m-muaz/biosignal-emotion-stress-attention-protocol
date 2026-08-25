@@ -1,0 +1,20 @@
+# Dataset Version 1 -- SART canonical behavioral dataset (plans/attention_task.md §60 Version 1, §47 example).
+# Concurrent, stimulus-locked window: physiology from stimulus onset can contain
+# stimulus-evoked AND motor/response-related activity (plan §39A).
+name: a1_sart_behavior
+version_builder: a1_sart_behavior
+tasks: [sart]
+
+windowing:
+  mode: concurrent
+  anchor_col: stimulus_timestamp
+  pre_sec: 0.0
+  post_sec: 1.0
+
+history:
+  rt_trials: 10
+  minimum_valid_trials: 3
+
+split:
+  strategy: participant
+  seed: 42

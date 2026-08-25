@@ -1,0 +1,10 @@
+# Version s0c -- Raindrop + Highway pooled: baseline vs. active block.
+# Target: cond_stress_induction_binary (0=baseline, 1=active). Block-resolution.
+name: s0c_combined_baseline_vs_active
+version_builder: s0c_combined_baseline_vs_active
+task: stress+attention_highway
+
+exclude_highway_pre_fix: false
+
+split:
+  seed: 42

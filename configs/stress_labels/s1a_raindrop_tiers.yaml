@@ -1,0 +1,8 @@
+# Version s1a -- Raindrop active-block pressure tier classification.
+# Target: cond_task_pressure_tier (1/2/3). Block-resolution, active blocks only.
+name: s1a_raindrop_tiers
+version_builder: s1a_raindrop_tiers
+task: stress
+
+split:
+  seed: 42

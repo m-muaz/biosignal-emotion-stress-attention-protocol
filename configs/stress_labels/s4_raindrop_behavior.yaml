@@ -1,0 +1,9 @@
+# Version s4 -- Raindrop trial-level behavioral dataset.
+# Multiple targets kept side by side (beh_correct / beh_missed / beh_rt_sec /
+# derived_deadline_fraction) -- no single model_target forced. Trial-resolution.
+name: s4_raindrop_behavior
+version_builder: s4_raindrop_behavior
+task: stress
+
+split:
+  seed: 42

@@ -1,0 +1,10 @@
+# Version s5 -- Highway per-obstacle behavioral dataset.
+# Targets: beh_collision / beh_near_miss / beh_reaction_margin_sec / etc. Obstacle-resolution.
+name: s5_highway_behavior
+version_builder: s5_highway_behavior
+task: attention_highway
+
+exclude_highway_pre_fix: false
+
+split:
+  seed: 42

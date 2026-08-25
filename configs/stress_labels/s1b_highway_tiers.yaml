@@ -1,0 +1,10 @@
+# Version s1b -- Highway active-block pressure tier classification.
+# Target: cond_task_pressure_tier (1/2/3). Block-resolution, active blocks only.
+name: s1b_highway_tiers
+version_builder: s1b_highway_tiers
+task: attention_highway
+
+exclude_highway_pre_fix: false
+
+split:
+  seed: 42
